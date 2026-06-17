@@ -183,6 +183,9 @@ class _BalanceHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final balanceColor =
+        controller.netBalance < 0 ? AppColors.danger : Colors.white;
+
     return Card(
       child: Container(
         width: double.infinity,
@@ -213,7 +216,7 @@ class _BalanceHero extends StatelessWidget {
                 symbol: controller.currencyCode,
               ),
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: Colors.white,
+                color: balanceColor,
                 fontWeight: FontWeight.w900,
               ),
             ),
