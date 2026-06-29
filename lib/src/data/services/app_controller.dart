@@ -18,12 +18,14 @@ class AppController extends ChangeNotifier {
 
   static const String onboardingKey = 'onboarding_complete';
   static const String currencyKey = 'currency_code';
+  static const String hideBalancesKey = 'hide_balances';
 
   late List<ExpenseCategory> _categories;
   late List<ExpenseEntry> _entries;
   late List<BudgetPlan> _budgets;
   late List<DebtRecord> _debts;
   bool _onboardingComplete = false;
+  bool _hideBalances = false;
   String _currencyCode = 'NGN';
   final List<StreamSubscription<BoxEvent>> _subscriptions = [];
 
@@ -32,11 +34,14 @@ class AppController extends ChangeNotifier {
   List<BudgetPlan> get budgets => List.unmodifiable(_budgets);
   List<DebtRecord> get debts => List.unmodifiable(_debts);
   bool get onboardingComplete => _onboardingComplete;
+  bool get hideBalances => _hideBalances;
   String get currencyCode => _currencyCode;
 
   Future<void> initialize() async {
     _onboardingComplete =
         _storage.settingsBox.get(onboardingKey, defaultValue: false) as bool;
+    _hideBalances =
+        _storage.settingsBox.get(hideBalancesKey, defaultValue: false) as bool;
     _currencyCode =
         _storage.settingsBox.get(currencyKey, defaultValue: 'NGN') as String;
 
@@ -234,6 +239,12 @@ class AppController extends ChangeNotifier {
   Future<void> updateCurrency(String currencyCode) async {
     _currencyCode = currencyCode;
     await _storage.settingsBox.put(currencyKey, currencyCode);
+    notifyListeners();
+  }
+
+  Future<void> setHideBalances(bool hideBalances) async {
+    _hideBalances = hideBalances;
+    await _storage.settingsBox.put(hideBalancesKey, hideBalances);
     notifyListeners();
   }
 

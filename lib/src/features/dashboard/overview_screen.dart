@@ -183,8 +183,14 @@ class _BalanceHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final balanceColor =
-        controller.netBalance < 0 ? AppColors.danger : Colors.white;
+    final balanceColor = controller.netBalance < 0
+        ? AppColors.danger
+        : Colors.white;
+    final amountText = _formatBalanceAmount(
+      value: controller.netBalance,
+      symbol: controller.currencyCode,
+      hidden: controller.hideBalances,
+    );
 
     return Card(
       child: Container(
@@ -203,20 +209,39 @@ class _BalanceHero extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Net balance',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Colors.white.withValues(alpha: 0.72),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Net balance',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.72),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    controller.setHideBalances(!controller.hideBalances);
+                  },
+                  icon: Icon(
+                    controller.hideBalances
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                    color: Colors.white,
+                  ),
+                  tooltip: controller.hideBalances
+                      ? 'Show balances'
+                      : 'Hide balances',
+                  visualDensity: VisualDensity.compact,
+                  splashRadius: 20,
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Text(
-              AppFormatters.currency(
-                controller.netBalance,
-                symbol: controller.currencyCode,
-              ),
+              amountText,
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: balanceColor,
+                color: controller.hideBalances ? Colors.white : balanceColor,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -289,6 +314,12 @@ class _MiniSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final amountText = _formatBalanceAmount(
+      value: value,
+      symbol: controller.currencyCode,
+      hidden: controller.hideBalances,
+    );
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -307,7 +338,7 @@ class _MiniSummaryCard extends StatelessWidget {
             Text(label, style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: 6),
             Text(
-              AppFormatters.currency(value, symbol: controller.currencyCode),
+              amountText,
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
@@ -317,6 +348,18 @@ class _MiniSummaryCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatBalanceAmount({
+  required double value,
+  required String symbol,
+  required bool hidden,
+}) {
+  if (!hidden) {
+    return AppFormatters.currency(value, symbol: symbol);
+  }
+
+  return '$symbol ••••••';
 }
 
 class _EntryTile extends StatelessWidget {

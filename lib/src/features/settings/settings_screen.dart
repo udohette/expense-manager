@@ -74,6 +74,16 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
                 const Divider(height: 1),
+                SwitchListTile(
+                  secondary: const Icon(Icons.visibility_off_rounded),
+                  title: const Text('Hide balances'),
+                  subtitle: const Text(
+                    'Mask amounts on the overview cards until you choose to reveal them',
+                  ),
+                  value: controller.hideBalances,
+                  onChanged: controller.setHideBalances,
+                ),
+                const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.category_rounded),
                   title: const Text('Manage categories'),
