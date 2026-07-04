@@ -36,7 +36,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
+    _selectedMonth = widget.controller.getLastSelectedMonth();
   }
 
   @override
@@ -82,19 +82,43 @@ class _OverviewScreenState extends State<OverviewScreen> {
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(width: 8),
-              DropdownButton<DateTime>(
-                value: _selectedMonth,
-                items: List.generate(12, (i) {
-                  final now = DateTime.now();
-                  final monthDate = DateTime(now.year, now.month - (11 - i), 1);
-                  return DropdownMenuItem<DateTime>(
-                    value: monthDate,
-                    child: Text(AppFormatters.monthYear(monthDate)),
-                  );
-                }),
-                onChanged: (v) {
-                  if (v != null) setState(() => _selectedMonth = v);
-                },
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Theme.of(context).dividerColor),
+                  color: Theme.of(context).cardColor,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<DateTime>(
+                      value: _selectedMonth,
+                      items: List.generate(12, (i) {
+                        final now = DateTime.now();
+                        final monthDate = DateTime(
+                          now.year,
+                          now.month - (11 - i),
+                          1,
+                        );
+                        return DropdownMenuItem<DateTime>(
+                          value: monthDate,
+                          child: Text(AppFormatters.monthYear(monthDate)),
+                        );
+                      }),
+                      onChanged: (v) async {
+                        if (v != null) {
+                          setState(() => _selectedMonth = v);
+                          await widget.controller.setLastSelectedMonth(v);
+                          // Clear any persisted transactions date-range when switching month
+                          await widget.controller.setLastSelectedStartDate(
+                            null,
+                          );
+                          await widget.controller.setLastSelectedEndDate(null);
+                        }
+                      },
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
@@ -432,6 +456,10 @@ class _EntryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final category = controller.findCategory(entry.categoryId);
+    final bankLinked = _isBankLinked(entry);
+    final leadingColor = bankLinked
+        ? const Color(0xFF2F5B9A)
+        : category?.color ?? AppColors.primary;
     return Card(
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(
@@ -439,17 +467,19 @@ class _EntryTile extends StatelessWidget {
           vertical: 10,
         ),
         leading: CircleAvatar(
-          backgroundColor: (category?.color ?? AppColors.primary).withValues(
-            alpha: 0.14,
-          ),
+          backgroundColor: leadingColor.withValues(alpha: 0.14),
           child: Icon(
-            category?.icon ?? Icons.category_rounded,
-            color: category?.color ?? AppColors.primary,
+            bankLinked
+                ? Icons.account_balance_rounded
+                : category?.icon ?? Icons.category_rounded,
+            color: leadingColor,
           ),
         ),
         title: Text(entry.title),
         subtitle: Text(
-          '${category?.name ?? 'Category'}  •  ${AppFormatters.compactDate(entry.date)}',
+          bankLinked
+              ? '${_resolvedBankName(entry)}  •  ${AppFormatters.compactDate(entry.date)}'
+              : '${category?.name ?? 'Category'}  •  ${AppFormatters.compactDate(entry.date)}',
         ),
         trailing: Text(
           '${entry.type == EntryType.expense ? '-' : '+'}${AppFormatters.currency(entry.amount, symbol: controller.currencyCode)}',
@@ -462,5 +492,37 @@ class _EntryTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  bool _isBankLinked(ExpenseEntry entry) {
+    return _resolvedBankName(entry).isNotEmpty;
+  }
+
+  String _resolvedBankName(ExpenseEntry entry) {
+    if (entry.institutionName.trim().isNotEmpty) {
+      return entry.institutionName.trim();
+    }
+    final paymentMethod = entry.paymentMethod.trim().toLowerCase();
+    if (paymentMethod.contains('providus')) return 'Providus';
+    if (paymentMethod.contains('wema')) return 'Wema Bank';
+    if (paymentMethod.contains('gtbank') || paymentMethod.contains('gt bank')) {
+      return 'GTBank';
+    }
+    if (paymentMethod.contains('access')) return 'Access Bank';
+    if (paymentMethod.contains('union')) return 'Union Bank';
+    if (paymentMethod.contains('stanbic')) return 'Stanbic IBTC';
+
+    final rawText =
+        '${entry.note} ${entry.rawMessage} ${entry.merchantOrSender}'
+            .toLowerCase();
+    if (rawText.contains('providus')) return 'Providus';
+    if (rawText.contains('wema')) return 'Wema Bank';
+    if (rawText.contains('gtbank') || rawText.contains('gt bank')) {
+      return 'GTBank';
+    }
+    if (rawText.contains('access')) return 'Access Bank';
+    if (rawText.contains('union')) return 'Union Bank';
+    if (rawText.contains('stanbic')) return 'Stanbic IBTC';
+    return '';
   }
 }

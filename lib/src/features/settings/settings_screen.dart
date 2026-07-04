@@ -102,6 +102,29 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 const Divider(height: 1),
                 ListTile(
+                  leading: const Icon(Icons.cleaning_services_rounded),
+                  title: const Text('Re-run SMS cleanup'),
+                  subtitle: const Text(
+                    'Remove old duplicate or malformed bank SMS imports',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final deletedCount = await controller
+                        .rerunSmsImportCleanup();
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          deletedCount == 0
+                              ? 'No duplicate SMS imports were found.'
+                              : 'Removed $deletedCount duplicate SMS import${deletedCount == 1 ? '' : 's'}.',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
                   leading: const Icon(Icons.security_update_good_rounded),
                   title: const Text('Storage mode'),
                   subtitle: const Text('Hive local storage enabled'),

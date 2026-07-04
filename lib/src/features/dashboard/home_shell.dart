@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../data/services/app_controller.dart';
+import '../../data/services/sms_import_service.dart';
 import '../budgets/budgets_screen.dart';
 import '../debts/debts_screen.dart';
 import '../settings/settings_screen.dart';
@@ -17,8 +20,121 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
+  final SmsImportService _smsImportService = SmsImportService();
+  Timer? _smsAutoSyncTimer;
+  StreamSubscription<SmsImportCandidate>? _incomingSmsSubscription;
+  bool _isAutoImportRunning = false;
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _startSmsAutoSync();
+    unawaited(_startIncomingSmsListener());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _smsAutoSyncTimer?.cancel();
+    _incomingSmsSubscription?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startSmsAutoSync(runImmediately: true);
+      unawaited(_startIncomingSmsListener());
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.inactive) {
+      _smsAutoSyncTimer?.cancel();
+      _incomingSmsSubscription?.cancel();
+    }
+  }
+
+  void _startSmsAutoSync({bool runImmediately = true}) {
+    _smsAutoSyncTimer?.cancel();
+    if (runImmediately) {
+      unawaited(_autoImportSmsTransactions());
+    }
+    _smsAutoSyncTimer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => unawaited(_autoImportSmsTransactions()),
+    );
+  }
+
+  Future<void> _autoImportSmsTransactions() async {
+    if (_isAutoImportRunning) {
+      return;
+    }
+    _isAutoImportRunning = true;
+    try {
+      final hasPermission = await _smsImportService.hasSmsPermission();
+      if (!hasPermission || !mounted) {
+        return;
+      }
+
+      final session = await _smsImportService.prepareImport(
+        existingEntries: widget.controller.entries,
+        categories: widget.controller.categories,
+      );
+      if (session.status != SmsImportStatus.ready ||
+          session.candidates.isEmpty) {
+        return;
+      }
+
+      final candidates = _smsImportService.filterNewCandidates(
+        candidates: session.candidates,
+        existingEntries: widget.controller.entries,
+      );
+      final entries = _smsImportService.buildEntriesFromCandidates(
+        candidates: candidates,
+        categories: widget.controller.categories,
+      );
+      if (entries.isEmpty) {
+        return;
+      }
+
+      await widget.controller.addEntries(entries);
+    } finally {
+      _isAutoImportRunning = false;
+    }
+  }
+
+  Future<void> _startIncomingSmsListener() async {
+    await _incomingSmsSubscription?.cancel();
+    final hasPermission = await _smsImportService.hasSmsPermission();
+    if (!hasPermission || !mounted) {
+      return;
+    }
+
+    _incomingSmsSubscription = _smsImportService.watchIncomingSms().listen((
+      candidate,
+    ) async {
+      if (_isAutoImportRunning) {
+        return;
+      }
+      final candidates = _smsImportService.filterNewCandidates(
+        candidates: [candidate],
+        existingEntries: widget.controller.entries,
+      );
+      if (candidates.isEmpty) {
+        return;
+      }
+      final entries = _smsImportService.buildEntriesFromCandidates(
+        candidates: candidates,
+        categories: widget.controller.categories,
+      );
+      if (entries.isEmpty) {
+        return;
+      }
+      await widget.controller.addEntries(entries);
+    }, onError: (_) {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,30 +184,34 @@ class _HomeShellState extends State<HomeShell> {
           ),
         ],
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: _index == 4
           ? null
-          : FloatingActionButton.extended(
-              onPressed: () {
-                switch (_index) {
-                  case 0:
-                    overviewPage.onQuickAction(context);
-                    break;
-                  case 1:
-                    transactionsPage.onQuickAction(context);
-                    break;
-                  case 2:
-                    budgetsPage.onQuickAction(context);
-                    break;
-                  case 3:
-                    debtsPage.onQuickAction(context);
-                    break;
-                  default:
-                    break;
-                }
-              },
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Add'),
-              backgroundColor: AppColors.primary,
+          : Padding(
+              padding: const EdgeInsets.only(bottom: 72),
+              child: FloatingActionButton.extended(
+                onPressed: () {
+                  switch (_index) {
+                    case 0:
+                      overviewPage.onQuickAction(context);
+                      break;
+                    case 1:
+                      transactionsPage.onQuickAction(context);
+                      break;
+                    case 2:
+                      budgetsPage.onQuickAction(context);
+                      break;
+                    case 3:
+                      debtsPage.onQuickAction(context);
+                      break;
+                    default:
+                      break;
+                  }
+                },
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Add'),
+                backgroundColor: AppColors.primary,
+              ),
             ),
     );
   }

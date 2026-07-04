@@ -14,6 +14,7 @@ Future<void> main() async {
   final storage = HiveStorageService();
   await storage.initialize();
   storage.registerAdapter(EntryTypeAdapter());
+  storage.registerAdapter(TransactionSourceAdapter());
   storage.registerAdapter(ExpenseCategoryAdapter());
   storage.registerAdapter(ExpenseEntryAdapter());
   storage.registerAdapter(BudgetPeriodAdapter());

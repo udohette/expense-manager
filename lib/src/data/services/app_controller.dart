@@ -19,6 +19,14 @@ class AppController extends ChangeNotifier {
   static const String onboardingKey = 'onboarding_complete';
   static const String currencyKey = 'currency_code';
   static const String hideBalancesKey = 'hide_balances';
+  static const String lastSelectedCategoryKey = 'last_selected_category';
+  static const String lastSelectedMonthKey = 'last_selected_month';
+  static const String lastSelectedStartDateKey = 'last_selected_start_date';
+  static const String lastSelectedEndDateKey = 'last_selected_end_date';
+  static const String lastSelectedTypeKey = 'last_selected_type';
+  static const String lastSearchTextKey = 'last_search_text';
+  static const String smsCleanupVersionKey = 'sms_cleanup_version';
+  static const int smsCleanupVersion = 3;
 
   late List<ExpenseCategory> _categories;
   late List<ExpenseEntry> _entries;
@@ -30,7 +38,8 @@ class AppController extends ChangeNotifier {
   final List<StreamSubscription<BoxEvent>> _subscriptions = [];
 
   List<ExpenseCategory> get categories => List.unmodifiable(_categories);
-  List<ExpenseEntry> get entries => List.unmodifiable(_entries);
+  List<ExpenseEntry> get entries =>
+      List.unmodifiable(_coalescedSmsEntries(_entries));
   List<BudgetPlan> get budgets => List.unmodifiable(_budgets);
   List<DebtRecord> get debts => List.unmodifiable(_debts);
   bool get onboardingComplete => _onboardingComplete;
@@ -46,6 +55,7 @@ class AppController extends ChangeNotifier {
         _storage.settingsBox.get(currencyKey, defaultValue: 'NGN') as String;
 
     await _seedDefaults();
+    await _runSmsImportCleanupIfNeeded();
     _loadAll();
 
     _subscriptions.add(
@@ -70,6 +80,206 @@ class AppController extends ChangeNotifier {
     _debts = _storage.debtsBox.values.toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     notifyListeners();
+  }
+
+  Future<void> _runSmsImportCleanupIfNeeded() async {
+    final appliedVersion =
+        _storage.settingsBox.get(smsCleanupVersionKey, defaultValue: 0) as int;
+    if (appliedVersion >= smsCleanupVersion) {
+      return;
+    }
+
+    await rerunSmsImportCleanup();
+    await _storage.settingsBox.put(smsCleanupVersionKey, smsCleanupVersion);
+  }
+
+  Future<int> rerunSmsImportCleanup() async {
+    final deletedKeys = await _collectSmsImportCleanupKeys();
+    if (deletedKeys.isNotEmpty) {
+      await _storage.entriesBox.deleteAll(deletedKeys);
+    }
+    _loadAll();
+    return deletedKeys.length;
+  }
+
+  Future<List<dynamic>> _collectSmsImportCleanupKeys() async {
+    final entryMap = _storage.entriesBox.toMap();
+    final smsEntries = entryMap.entries
+        .where((entry) => entry.value.source == TransactionSource.sms)
+        .toList();
+
+    if (smsEntries.isEmpty) {
+      return const [];
+    }
+
+    final duplicates = <dynamic>{};
+    for (final duplicate in _collectSmsDuplicateEntries(smsEntries)) {
+      duplicates.add(duplicate.key);
+    }
+    return duplicates.toList();
+  }
+
+  List<ExpenseEntry> _coalescedSmsEntries(List<ExpenseEntry> entries) {
+    final smsEntries = entries.where(
+      (entry) => entry.source == TransactionSource.sms,
+    );
+    final duplicateIds = _collectSmsDuplicateEntries(
+      smsEntries.map((entry) => MapEntry(entry.id, entry)).toList(),
+    ).map((entry) => entry.value.id).toSet();
+    return entries.where((entry) => !duplicateIds.contains(entry.id)).toList();
+  }
+
+  List<MapEntry<dynamic, ExpenseEntry>> _collectSmsDuplicateEntries(
+    List<MapEntry<dynamic, ExpenseEntry>> smsEntries,
+  ) {
+    final duplicates = <MapEntry<dynamic, ExpenseEntry>>[];
+    final grouped = <String, List<MapEntry<dynamic, ExpenseEntry>>>{};
+
+    for (final entry in smsEntries) {
+      final item = entry.value;
+      final groupKey = [
+        item.institutionName.trim().toLowerCase(),
+        item.type.name,
+        item.amount.toStringAsFixed(2),
+        item.accountHint.trim().toLowerCase(),
+        _dayKey(item.date),
+      ].join('|');
+      grouped.putIfAbsent(groupKey, () => []).add(entry);
+    }
+
+    for (final group in grouped.values) {
+      if (group.length < 2) {
+        continue;
+      }
+      group.sort((a, b) {
+        final scoreCompare =
+            _smsEntryRichnessScore(b.value) - _smsEntryRichnessScore(a.value);
+        if (scoreCompare != 0) {
+          return scoreCompare;
+        }
+        return a.value.date.compareTo(b.value.date);
+      });
+
+      for (var anchorIndex = 0; anchorIndex < group.length; anchorIndex++) {
+        final anchor = group[anchorIndex].value;
+        for (
+          var compareIndex = anchorIndex + 1;
+          compareIndex < group.length;
+          compareIndex++
+        ) {
+          final candidate = group[compareIndex].value;
+          if (_isLikelyDuplicatePair(anchor, candidate)) {
+            duplicates.add(group[compareIndex]);
+          }
+        }
+      }
+    }
+
+    final seenKeys = <dynamic>{};
+    return duplicates.where((entry) => seenKeys.add(entry.key)).toList();
+  }
+
+  int _smsEntryRichnessScore(ExpenseEntry entry) {
+    var score = 0;
+    if (entry.rawMessage.trim().isNotEmpty) {
+      score += 5;
+    }
+    if (_looksGenericSmsEntry(entry)) {
+      score -= 4;
+    }
+    if (entry.merchantOrSender.trim().isNotEmpty &&
+        entry.merchantOrSender.trim().toLowerCase() !=
+            entry.institutionName.trim().toLowerCase()) {
+      score += 4;
+    }
+    if (entry.title.trim().isNotEmpty &&
+        entry.title.trim().toLowerCase() !=
+            entry.institutionName.trim().toLowerCase()) {
+      score += 3;
+    }
+    if (entry.accountHint.trim().isNotEmpty) {
+      score += 2;
+    }
+    if (entry.note.trim().isNotEmpty) {
+      score += 1;
+    }
+    return score;
+  }
+
+  bool _isLikelyDuplicatePair(ExpenseEntry keeper, ExpenseEntry candidate) {
+    final keeperText = _normalizedSmsText(keeper);
+    final candidateText = _normalizedSmsText(candidate);
+
+    final sameDay = _dayKey(keeper.date) == _dayKey(candidate.date);
+    final secondsApart = keeper.date.difference(candidate.date).inSeconds.abs();
+    final withinLegacyWindow = secondsApart <= 180;
+
+    final sameRawMessage =
+        keeper.rawMessage.trim().isNotEmpty &&
+        candidate.rawMessage.trim().isNotEmpty &&
+        _normalizeLooseText(keeper.rawMessage) ==
+            _normalizeLooseText(candidate.rawMessage);
+
+    if (keeperText.isNotEmpty &&
+        candidateText.isNotEmpty &&
+        (keeperText == candidateText ||
+            keeperText.contains(candidateText) ||
+            candidateText.contains(keeperText))) {
+      if (withinLegacyWindow || sameDay || sameRawMessage) {
+        return true;
+      }
+    }
+
+    if (_looksGenericSmsEntry(candidate) &&
+        !_looksGenericSmsEntry(keeper) &&
+        keeper.type == candidate.type &&
+        (keeper.amount - candidate.amount).abs() < 0.009 &&
+        (withinLegacyWindow || sameDay || sameRawMessage)) {
+      return true;
+    }
+
+    if (sameRawMessage &&
+        keeper.type == candidate.type &&
+        (keeper.amount - candidate.amount).abs() < 0.009) {
+      return true;
+    }
+
+    return false;
+  }
+
+  bool _looksGenericSmsEntry(ExpenseEntry entry) {
+    final title = entry.title.trim().toLowerCase();
+    final bank = entry.institutionName.trim().toLowerCase();
+    final description = entry.merchantOrSender.trim().toLowerCase();
+
+    if (title.isEmpty) {
+      return true;
+    }
+    if (bank.isNotEmpty && title == bank) {
+      return true;
+    }
+    if (description.isEmpty || description == title || description == bank) {
+      return true;
+    }
+    return false;
+  }
+
+  String _normalizedSmsText(ExpenseEntry entry) {
+    final value = [
+      entry.title,
+      entry.merchantOrSender,
+      entry.rawMessage,
+    ].join(' ');
+    return _normalizeLooseText(value);
+  }
+
+  String _normalizeLooseText(String value) {
+    return value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+  }
+
+  String _dayKey(DateTime date) {
+    final normalized = DateTime(date.year, date.month, date.day);
+    return normalized.toIso8601String();
   }
 
   Future<void> _seedDefaults() async {
@@ -131,9 +341,52 @@ class AppController extends ChangeNotifier {
           type: EntryType.income,
           isDefault: true,
         ),
+        ExpenseCategory(
+          id: 'bank_debit',
+          name: 'Bank Debit',
+          iconCodePoint: Icons.account_balance_rounded.codePoint,
+          colorValue: const Color(0xFFB94E48).toARGB32(),
+          type: EntryType.expense,
+          isDefault: true,
+        ),
+        ExpenseCategory(
+          id: 'bank_credit',
+          name: 'Bank Credit',
+          iconCodePoint: Icons.account_balance_wallet_rounded.codePoint,
+          colorValue: const Color(0xFF2E8B57).toARGB32(),
+          type: EntryType.income,
+          isDefault: true,
+        ),
       ];
 
       await _storage.categoriesBox.addAll(seedCategories);
+    } else {
+      final existingIds = _storage.categoriesBox.values
+          .map((item) => item.id)
+          .toSet();
+      final missingCategories = <ExpenseCategory>[
+        if (!existingIds.contains('bank_debit'))
+          ExpenseCategory(
+            id: 'bank_debit',
+            name: 'Bank Debit',
+            iconCodePoint: Icons.account_balance_rounded.codePoint,
+            colorValue: const Color(0xFFB94E48).toARGB32(),
+            type: EntryType.expense,
+            isDefault: true,
+          ),
+        if (!existingIds.contains('bank_credit'))
+          ExpenseCategory(
+            id: 'bank_credit',
+            name: 'Bank Credit',
+            iconCodePoint: Icons.account_balance_wallet_rounded.codePoint,
+            colorValue: const Color(0xFF2E8B57).toARGB32(),
+            type: EntryType.income,
+            isDefault: true,
+          ),
+      ];
+      if (missingCategories.isNotEmpty) {
+        await _storage.categoriesBox.addAll(missingCategories);
+      }
     }
 
     if (_storage.entriesBox.isEmpty) {
@@ -230,6 +483,14 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  ExpenseCategory? firstCategoryForType(EntryType type) {
+    try {
+      return _categories.firstWhere((item) => item.type == type);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> setOnboardingComplete() async {
     _onboardingComplete = true;
     await _storage.settingsBox.put(onboardingKey, true);
@@ -248,8 +509,107 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  String? get lastSelectedCategory =>
+      _storage.settingsBox.get(lastSelectedCategoryKey) as String?;
+
+  EntryType? get lastSelectedType {
+    final s = _storage.settingsBox.get(lastSelectedTypeKey) as String?;
+    if (s == null) return null;
+    return s == 'expense' ? EntryType.expense : EntryType.income;
+  }
+
+  String getLastSearchText() =>
+      _storage.settingsBox.get(lastSearchTextKey, defaultValue: '') as String;
+
+  Future<void> setLastSelectedCategory(String? categoryId) async {
+    if (categoryId == null) {
+      await _storage.settingsBox.delete(lastSelectedCategoryKey);
+    } else {
+      await _storage.settingsBox.put(lastSelectedCategoryKey, categoryId);
+    }
+    notifyListeners();
+  }
+
+  Future<void> setLastSelectedType(EntryType? type) async {
+    if (type == null) {
+      await _storage.settingsBox.delete(lastSelectedTypeKey);
+    } else {
+      final v = type == EntryType.expense ? 'expense' : 'income';
+      await _storage.settingsBox.put(lastSelectedTypeKey, v);
+    }
+    notifyListeners();
+  }
+
+  Future<void> setLastSearchText(String text) async {
+    if (text.isEmpty) {
+      await _storage.settingsBox.delete(lastSearchTextKey);
+    } else {
+      await _storage.settingsBox.put(lastSearchTextKey, text);
+    }
+    notifyListeners();
+  }
+
+  DateTime getLastSelectedMonth() {
+    final millis = _storage.settingsBox.get(lastSelectedMonthKey) as int?;
+    if (millis == null) {
+      final now = DateTime.now();
+      return DateTime(now.year, now.month);
+    }
+    final d = DateTime.fromMillisecondsSinceEpoch(millis);
+    return DateTime(d.year, d.month);
+  }
+
+  Future<void> setLastSelectedMonth(DateTime month) async {
+    final normalized = DateTime(month.year, month.month);
+    await _storage.settingsBox.put(
+      lastSelectedMonthKey,
+      normalized.millisecondsSinceEpoch,
+    );
+    notifyListeners();
+  }
+
+  DateTime? getLastSelectedStartDate() {
+    final millis = _storage.settingsBox.get(lastSelectedStartDateKey) as int?;
+    if (millis == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(millis);
+  }
+
+  DateTime? getLastSelectedEndDate() {
+    final millis = _storage.settingsBox.get(lastSelectedEndDateKey) as int?;
+    if (millis == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(millis);
+  }
+
+  Future<void> setLastSelectedStartDate(DateTime? date) async {
+    if (date == null) {
+      await _storage.settingsBox.delete(lastSelectedStartDateKey);
+    } else {
+      await _storage.settingsBox.put(
+        lastSelectedStartDateKey,
+        date.millisecondsSinceEpoch,
+      );
+    }
+    notifyListeners();
+  }
+
+  Future<void> setLastSelectedEndDate(DateTime? date) async {
+    if (date == null) {
+      await _storage.settingsBox.delete(lastSelectedEndDateKey);
+    } else {
+      await _storage.settingsBox.put(
+        lastSelectedEndDateKey,
+        date.millisecondsSinceEpoch,
+      );
+    }
+    notifyListeners();
+  }
+
   Future<void> addEntry(ExpenseEntry entry) async {
     await _storage.entriesBox.add(entry);
+  }
+
+  Future<void> addEntries(Iterable<ExpenseEntry> entries) async {
+    await _storage.entriesBox.addAll(entries);
   }
 
   Future<void> updateEntry(ExpenseEntry entry) async {
