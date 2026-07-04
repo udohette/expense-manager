@@ -11,7 +11,7 @@ import '../../widgets/section_header.dart';
 import '../transactions/transaction_form_sheet.dart';
 import 'home_shell.dart';
 
-class OverviewScreen extends StatelessWidget implements QuickActionHost {
+class OverviewScreen extends StatefulWidget implements QuickActionHost {
   const OverviewScreen({required this.controller, super.key});
 
   final AppController controller;
@@ -27,10 +27,28 @@ class OverviewScreen extends StatelessWidget implements QuickActionHost {
   }
 
   @override
+  State<OverviewScreen> createState() => _OverviewScreenState();
+}
+
+class _OverviewScreenState extends State<OverviewScreen> {
+  late DateTime _selectedMonth;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final monthlyCategory = controller.currentMonthByCategory.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    final recentEntries = controller.entries.take(5).toList();
+    final monthlyCategory =
+        widget.controller.getMonthByCategory(_selectedMonth).entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+
+    final monthlyIncome = widget.controller.getMonthIncome(_selectedMonth);
+    final monthlyExpense = widget.controller.getMonthExpense(_selectedMonth);
+
+    final recentEntries = widget.controller.entries.take(5).toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
@@ -49,32 +67,62 @@ class OverviewScreen extends StatelessWidget implements QuickActionHost {
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 20),
-          _BalanceHero(controller: controller),
+          _BalanceHero(
+            controller: widget.controller,
+            selectedMonth: _selectedMonth,
+            monthlyIncome: monthlyIncome,
+            monthlyExpense: monthlyExpense,
+          ),
+          const SizedBox(height: 18),
+          // Month selector dropdown
+          Row(
+            children: [
+              const Text(
+                'Month:',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(width: 8),
+              DropdownButton<DateTime>(
+                value: _selectedMonth,
+                items: List.generate(12, (i) {
+                  final now = DateTime.now();
+                  final monthDate = DateTime(now.year, now.month - (11 - i), 1);
+                  return DropdownMenuItem<DateTime>(
+                    value: monthDate,
+                    child: Text(AppFormatters.monthYear(monthDate)),
+                  );
+                }),
+                onChanged: (v) {
+                  if (v != null) setState(() => _selectedMonth = v);
+                },
+              ),
+            ],
+          ),
           const SizedBox(height: 18),
           Row(
             children: [
               Expanded(
                 child: _MiniSummaryCard(
-                  label: 'Income',
-                  value: controller.totalIncome,
+                  label: 'Month Income',
+                  value: monthlyIncome,
                   color: AppColors.success,
-                  controller: controller,
+                  controller: widget.controller,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _MiniSummaryCard(
-                  label: 'Expenses',
-                  value: controller.totalExpense,
+                  label: 'Month Expenses',
+                  value: monthlyExpense,
                   color: AppColors.danger,
-                  controller: controller,
+                  controller: widget.controller,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 24),
           const SectionHeader(
-            title: 'This month',
+            title: 'Category breakdown',
             subtitle: 'Category pressure points and spending distribution',
           ),
           const SizedBox(height: 12),
@@ -98,7 +146,9 @@ class OverviewScreen extends StatelessWidget implements QuickActionHost {
                           sectionsSpace: 2,
                           centerSpaceRadius: 48,
                           sections: monthlyCategory.take(5).map((entry) {
-                            final category = controller.findCategory(entry.key);
+                            final category = widget.controller.findCategory(
+                              entry.key,
+                            );
                             final total = monthlyCategory.fold<double>(
                               0,
                               (sum, item) => sum + item.value,
@@ -120,7 +170,9 @@ class OverviewScreen extends StatelessWidget implements QuickActionHost {
                     ),
                     const SizedBox(height: 12),
                     ...monthlyCategory.take(5).map((entry) {
-                      final category = controller.findCategory(entry.key);
+                      final category = widget.controller.findCategory(
+                        entry.key,
+                      );
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 6),
                         child: Row(
@@ -140,7 +192,7 @@ class OverviewScreen extends StatelessWidget implements QuickActionHost {
                             Text(
                               AppFormatters.currency(
                                 entry.value,
-                                symbol: controller.currencyCode,
+                                symbol: widget.controller.currencyCode,
                               ),
                             ),
                           ],
@@ -167,27 +219,36 @@ class OverviewScreen extends StatelessWidget implements QuickActionHost {
             ...recentEntries.map(
               (entry) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: _EntryTile(controller: controller, entry: entry),
+                child: _EntryTile(controller: widget.controller, entry: entry),
               ),
             ),
         ],
       ),
     );
   }
+
+  // month dropdown handled inline in build
 }
 
 class _BalanceHero extends StatelessWidget {
-  const _BalanceHero({required this.controller});
+  const _BalanceHero({
+    required this.controller,
+    required this.selectedMonth,
+    required this.monthlyIncome,
+    required this.monthlyExpense,
+  });
 
   final AppController controller;
+  final DateTime selectedMonth;
+  final double monthlyIncome;
+  final double monthlyExpense;
 
   @override
   Widget build(BuildContext context) {
-    final balanceColor = controller.netBalance < 0
-        ? AppColors.danger
-        : Colors.white;
+    final netBalance = monthlyIncome - monthlyExpense;
+    final balanceColor = netBalance < 0 ? AppColors.danger : Colors.white;
     final amountText = _formatBalanceAmount(
-      value: controller.netBalance,
+      value: netBalance,
       symbol: controller.currencyCode,
       hidden: controller.hideBalances,
     );
@@ -252,7 +313,7 @@ class _BalanceHero extends StatelessWidget {
               children: [
                 _HeroBadge(
                   icon: Icons.calendar_month_rounded,
-                  label: AppFormatters.monthYear(DateTime.now()),
+                  label: AppFormatters.monthYear(selectedMonth),
                 ),
                 _HeroBadge(
                   icon: Icons.wallet_rounded,

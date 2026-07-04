@@ -389,6 +389,46 @@ class AppController extends ChangeNotifier {
     return result;
   }
 
+  Map<String, double> getMonthByCategory(DateTime month) {
+    final result = <String, double>{};
+
+    for (final entry in _entries.where(
+      (item) =>
+          item.type == EntryType.expense &&
+          item.date.year == month.year &&
+          item.date.month == month.month,
+    )) {
+      result.update(
+        entry.categoryId,
+        (value) => value + entry.amount,
+        ifAbsent: () => entry.amount,
+      );
+    }
+    return result;
+  }
+
+  double getMonthIncome(DateTime month) {
+    return _entries
+        .where(
+          (item) =>
+              item.type == EntryType.income &&
+              item.date.year == month.year &&
+              item.date.month == month.month,
+        )
+        .fold(0, (sum, item) => sum + item.amount);
+  }
+
+  double getMonthExpense(DateTime month) {
+    return _entries
+        .where(
+          (item) =>
+              item.type == EntryType.expense &&
+              item.date.year == month.year &&
+              item.date.month == month.month,
+        )
+        .fold(0, (sum, item) => sum + item.amount);
+  }
+
   double spentForBudget(BudgetPlan budget) {
     return _entries
         .where(

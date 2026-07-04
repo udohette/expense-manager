@@ -31,6 +31,9 @@ class TransactionsScreen extends StatefulWidget implements QuickActionHost {
 
 class _TransactionsScreenState extends State<TransactionsScreen> {
   EntryType? _filter;
+  String? _selectedCategory;
+  DateTime? _startDate;
+  DateTime? _endDate;
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -39,18 +42,37 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     super.dispose();
   }
 
+  void _resetFilters() {
+    setState(() {
+      _filter = null;
+      _selectedCategory = null;
+      _startDate = null;
+      _endDate = null;
+      _searchController.clear();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final query = _searchController.text.trim().toLowerCase();
     final filtered = widget.controller.entries.where((entry) {
       final category = widget.controller.findCategory(entry.categoryId);
-      final matchesFilter = _filter == null || entry.type == _filter;
+      final matchesType = _filter == null || entry.type == _filter;
+      final matchesCategory =
+          _selectedCategory == null || entry.categoryId == _selectedCategory;
+      final matchesDateRange =
+          (_startDate == null ||
+              entry.date.isAfter(
+                _startDate!.subtract(const Duration(days: 1)),
+              )) &&
+          (_endDate == null ||
+              entry.date.isBefore(_endDate!.add(const Duration(days: 1))));
       final matchesQuery =
           query.isEmpty ||
           entry.title.toLowerCase().contains(query) ||
           (category?.name.toLowerCase().contains(query) ?? false) ||
           entry.note.toLowerCase().contains(query);
-      return matchesFilter && matchesQuery;
+      return matchesType && matchesCategory && matchesDateRange && matchesQuery;
     }).toList();
 
     return Padding(
@@ -73,6 +95,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             ),
           ),
           const SizedBox(height: 14),
+          // Type filter chips
           Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -94,6 +117,105 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          // Date and category filters
+          Row(
+            children: [
+              Expanded(
+                child: _DateFilterButton(
+                  label: _startDate == null
+                      ? 'Start Date'
+                      : AppFormatters.compactDate(_startDate!),
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _startDate ?? DateTime.now(),
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null) {
+                      setState(() => _startDate = picked);
+                    }
+                  },
+                  isActive: _startDate != null,
+                  onClear: () => setState(() => _startDate = null),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _DateFilterButton(
+                  label: _endDate == null
+                      ? 'End Date'
+                      : AppFormatters.compactDate(_endDate!),
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _endDate ?? DateTime.now(),
+                      firstDate: _startDate ?? DateTime(2000),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null) {
+                      setState(() => _endDate = picked);
+                    }
+                  },
+                  isActive: _endDate != null,
+                  onClear: () => setState(() => _endDate = null),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Category filter (dropdown)
+          Row(
+            children: [
+              const Text(
+                'Category:',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: DropdownButton<String?>(
+                  isExpanded: true,
+                  value: _selectedCategory,
+                  hint: const Text('All Categories'),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('All Categories'),
+                    ),
+                    ...widget.controller.categories
+                        .where(
+                          (cat) => widget.controller.entries.any(
+                            (e) => e.categoryId == cat.id,
+                          ),
+                        )
+                        .map(
+                          (cat) => DropdownMenuItem<String?>(
+                            value: cat.id,
+                            child: Text(cat.name),
+                          ),
+                        )
+                        .toList(),
+                  ],
+                  onChanged: (v) => setState(() => _selectedCategory = v),
+                ),
+              ),
+            ],
+          ),
+          if (_startDate != null ||
+              _endDate != null ||
+              _selectedCategory != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _resetFilters,
+                  icon: const Icon(Icons.close),
+                  label: const Text('Clear filters'),
+                ),
+              ),
+            ),
           const SizedBox(height: 16),
           Expanded(
             child: filtered.isEmpty
@@ -113,129 +235,162 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           )
                         : null,
                   )
-                : ListView.separated(
-                    itemCount: filtered.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final entry = filtered[index];
-                      final category = widget.controller.findCategory(
-                        entry.categoryId,
-                      );
-                      return Dismissible(
-                        key: ValueKey('entry-${entry.id}'),
-                        background: const _TransactionSwipeActionBackground(
-                          alignment: Alignment.centerLeft,
-                          color: AppColors.primary,
-                          icon: Icons.edit_rounded,
-                          label: 'Edit',
-                        ),
-                        secondaryBackground:
-                            const _TransactionSwipeActionBackground(
-                              alignment: Alignment.centerRight,
-                              color: AppColors.danger,
-                              icon: Icons.delete_rounded,
-                              label: 'Delete',
-                            ),
-                        confirmDismiss: (direction) async {
-                          if (direction == DismissDirection.startToEnd) {
-                            await _showEntryEditor(entry);
-                            return false;
-                          }
-                          return _confirmEntryDelete(entry);
-                        },
-                        onDismissed: (_) async {
-                          final messenger = ScaffoldMessenger.of(context);
-                          await widget.controller.deleteEntry(entry.id);
-                          messenger.showSnackBar(
-                            SnackBar(content: Text('${entry.title} deleted')),
-                          );
-                        },
-                        child: Card(
-                          child: ListTile(
-                            onTap: () =>
-                                _showEntryDetails(context, entry, category),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            leading: CircleAvatar(
-                              backgroundColor:
-                                  (category?.color ?? AppColors.primary)
-                                      .withValues(alpha: 0.15),
-                              child: Icon(
-                                category?.icon ?? Icons.category_rounded,
-                                color: category?.color ?? AppColors.primary,
-                              ),
-                            ),
-                            title: Text(entry.title),
-                            subtitle: Text(
-                              '${category?.name ?? 'Category'} • ${entry.paymentMethod} • ${AppFormatters.compactDate(entry.date)}',
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  '${entry.type == EntryType.expense ? '-' : '+'}${AppFormatters.currency(entry.amount, symbol: widget.controller.currencyCode)}',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    color: entry.type == EntryType.expense
-                                        ? AppColors.danger
-                                        : AppColors.success,
+                : Column(
+                    children: [
+                      Expanded(
+                        child: ListView.separated(
+                          itemCount: filtered.length,
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final entry = filtered[index];
+                            final category = widget.controller.findCategory(
+                              entry.categoryId,
+                            );
+                            return Dismissible(
+                              key: ValueKey('entry-${entry.id}'),
+                              background:
+                                  const _TransactionSwipeActionBackground(
+                                    alignment: Alignment.centerLeft,
+                                    color: AppColors.primary,
+                                    icon: Icons.edit_rounded,
+                                    label: 'Edit',
                                   ),
-                                ),
-                                PopupMenuButton<String>(
-                                  icon: const Icon(Icons.more_vert_rounded),
-                                  onSelected: (value) async {
-                                    if (value == 'view') {
-                                      await _showEntryDetails(
-                                        context,
-                                        entry,
-                                        category,
-                                      );
-                                    } else if (value == 'edit') {
-                                      await _showEntryEditor(entry);
-                                    } else {
-                                      final messenger = ScaffoldMessenger.of(
-                                        context,
-                                      );
-                                      final shouldDelete =
-                                          await _confirmEntryDelete(entry);
-                                      if (shouldDelete) {
-                                        await widget.controller.deleteEntry(
-                                          entry.id,
-                                        );
-                                        messenger.showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              '${entry.title} deleted',
-                                            ),
+                              secondaryBackground:
+                                  const _TransactionSwipeActionBackground(
+                                    alignment: Alignment.centerRight,
+                                    color: AppColors.danger,
+                                    icon: Icons.delete_rounded,
+                                    label: 'Delete',
+                                  ),
+                              confirmDismiss: (direction) async {
+                                if (direction == DismissDirection.startToEnd) {
+                                  await _showEntryEditor(entry);
+                                  return false;
+                                }
+                                return _confirmEntryDelete(entry);
+                              },
+                              onDismissed: (_) async {
+                                final messenger = ScaffoldMessenger.of(context);
+                                await widget.controller.deleteEntry(entry.id);
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    content: Text('${entry.title} deleted'),
+                                  ),
+                                );
+                              },
+                              child: Card(
+                                child: ExpansionTile(
+                                  tilePadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  leading: CircleAvatar(
+                                    backgroundColor:
+                                        (category?.color ?? AppColors.primary)
+                                            .withValues(alpha: 0.15),
+                                    child: Icon(
+                                      category?.icon ?? Icons.category_rounded,
+                                      color:
+                                          category?.color ?? AppColors.primary,
+                                    ),
+                                  ),
+                                  title: Text(entry.title),
+                                  subtitle: Text(
+                                    '${category?.name ?? 'Category'} • ${AppFormatters.compactDate(entry.date)}',
+                                  ),
+                                  trailing: Text(
+                                    '${entry.type == EntryType.expense ? '-' : '+'}${AppFormatters.currency(entry.amount, symbol: widget.controller.currencyCode)}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      color: entry.type == EntryType.expense
+                                          ? AppColors.danger
+                                          : AppColors.success,
+                                    ),
+                                  ),
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        16,
+                                        0,
+                                        16,
+                                        12,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            '${entry.paymentMethod} • ${AppFormatters.compactDate(entry.date)}',
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall,
                                           ),
-                                        );
-                                      }
-                                    }
-                                  },
-                                  itemBuilder: (_) => const [
-                                    PopupMenuItem(
-                                      value: 'view',
-                                      child: Text('View'),
-                                    ),
-                                    PopupMenuItem(
-                                      value: 'edit',
-                                      child: Text('Edit'),
-                                    ),
-                                    PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text('Delete'),
+                                          const SizedBox(height: 8),
+                                          if (entry.note.isNotEmpty)
+                                            Text(entry.note),
+                                          const SizedBox(height: 12),
+                                          Row(
+                                            children: [
+                                              TextButton(
+                                                onPressed: () async {
+                                                  await _showEntryDetails(
+                                                    context,
+                                                    entry,
+                                                    category,
+                                                  );
+                                                },
+                                                child: const Text('View'),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              TextButton(
+                                                onPressed: () async {
+                                                  await _showEntryEditor(entry);
+                                                },
+                                                child: const Text('Edit'),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              TextButton(
+                                                onPressed: () async {
+                                                  final shouldDelete =
+                                                      await _confirmEntryDelete(
+                                                        entry,
+                                                      );
+                                                  if (shouldDelete) {
+                                                    await widget.controller
+                                                        .deleteEntry(entry.id);
+                                                    ScaffoldMessenger.of(
+                                                      context,
+                                                    ).showSnackBar(
+                                                      SnackBar(
+                                                        content: Text(
+                                                          '${entry.title} deleted',
+                                                        ),
+                                                      ),
+                                                    );
+                                                    setState(() {});
+                                                  }
+                                                },
+                                                child: const Text('Delete'),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),
-                              ],
-                            ),
-                          ),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
+                      ),
+                      // Totals below the list
+                      _TransactionTotals(
+                        entries: filtered,
+                        controller: widget.controller,
+                      ),
+                    ],
                   ),
           ),
         ],
@@ -412,6 +567,116 @@ class _TransactionSwipeActionBackground extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _DateFilterButton extends StatelessWidget {
+  const _DateFilterButton({
+    required this.label,
+    required this.onPressed,
+    required this.isActive,
+    required this.onClear,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+  final bool isActive;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: const Icon(Icons.calendar_today_rounded, size: 18),
+      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+    );
+  }
+}
+
+class _TransactionTotals extends StatelessWidget {
+  const _TransactionTotals({required this.entries, required this.controller});
+
+  final List<ExpenseEntry> entries;
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final totalIncome = entries
+        .where((e) => e.type == EntryType.income)
+        .fold<double>(0, (sum, e) => sum + e.amount);
+    final totalExpense = entries
+        .where((e) => e.type == EntryType.expense)
+        .fold<double>(0, (sum, e) => sum + e.amount);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _TotalCard(
+            label: 'Total Income',
+            amount: totalIncome,
+            color: AppColors.success,
+            symbol: controller.currencyCode,
+          ),
+          _TotalCard(
+            label: 'Total Expense',
+            amount: totalExpense,
+            color: AppColors.danger,
+            symbol: controller.currencyCode,
+          ),
+          _TotalCard(
+            label: 'Net',
+            amount: totalIncome - totalExpense,
+            color: (totalIncome - totalExpense) >= 0
+                ? AppColors.success
+                : AppColors.danger,
+            symbol: controller.currencyCode,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TotalCard extends StatelessWidget {
+  const _TotalCard({
+    required this.label,
+    required this.amount,
+    required this.color,
+    required this.symbol,
+  });
+
+  final String label;
+  final double amount;
+  final Color color;
+  final String symbol;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          AppFormatters.currency(amount, symbol: symbol),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w700,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 }
