@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/amount_input_formatter.dart';
 import '../../core/utils/app_formatters.dart';
 import '../../data/models/expense_category.dart';
 import '../../data/models/expense_entry.dart';
@@ -35,6 +36,7 @@ class TransactionsScreen extends StatefulWidget implements QuickActionHost {
 
 class _TransactionsScreenState extends State<TransactionsScreen> {
   final SmsImportService _smsImportService = SmsImportService();
+  final Set<String> _deletingEntryIds = <String>{};
   EntryType? _filter;
   String? _selectedCategory;
   String? _selectedBank;
@@ -97,6 +99,66 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     await widget.controller.setLastSelectedEndDate(null);
   }
 
+  bool _isDeletingEntry(String entryId) => _deletingEntryIds.contains(entryId);
+
+  Future<void> _deleteEntryWithFeedback(
+    ExpenseEntry entry, {
+    String? successMessage,
+  }) async {
+    if (_isDeletingEntry(entry.id)) {
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _deletingEntryIds.add(entry.id));
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          duration: const Duration(minutes: 1),
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2.2),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text('Deleting ${entry.title}...')),
+            ],
+          ),
+        ),
+      );
+
+    try {
+      await widget.controller.deleteEntry(entry.id);
+      if (!mounted) {
+        return;
+      }
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text(successMessage ?? '${entry.title} deleted')),
+        );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Could not delete ${entry.title}. Please try again.'),
+          ),
+        );
+      rethrow;
+    } finally {
+      if (mounted) {
+        setState(() => _deletingEntryIds.remove(entry.id));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final query = _searchController.text.trim().toLowerCase();
@@ -104,8 +166,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final isCompact = screenWidth < 640;
     final allEntries = widget.controller.entries;
     final recurringTemplates = widget.controller.recurringTemplates;
-    final minAmount = double.tryParse(_minAmountController.text.trim());
-    final maxAmount = double.tryParse(_maxAmountController.text.trim());
+    final minAmount = double.tryParse(
+      AmountInputFormatter.normalize(_minAmountController.text),
+    );
+    final maxAmount = double.tryParse(
+      AmountInputFormatter.normalize(_maxAmountController.text),
+    );
     final bankOptions =
         allEntries
             .map(_resolvedBankName)
@@ -783,10 +849,27 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   final category = widget.controller.findCategory(
                     entry.categoryId,
                   );
+                  final isDeleting = _isDeletingEntry(entry.id);
                   final isRecurringOccurrence = entry.isRecurringOccurrence;
                   final isTransferEntry = widget.controller.isTransferEntry(
                     entry,
                   );
+                  final trailing = isDeleting
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2.2),
+                        )
+                      : Text(
+                          '${entry.type == EntryType.expense ? '-' : '+'}${AppFormatters.currency(entry.amount, symbol: widget.controller.currencyCode)}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: entry.type == EntryType.expense
+                                ? AppColors.danger
+                                : AppColors.success,
+                          ),
+                        );
+
                   return Dismissible(
                     key: ValueKey('entry-${entry.id}'),
                     background: const _TransactionSwipeActionBackground(
@@ -803,6 +886,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           label: 'Delete',
                         ),
                     confirmDismiss: (direction) async {
+                      if (isDeleting) {
+                        return false;
+                      }
                       if (isRecurringOccurrence) {
                         return false;
                       }
@@ -818,11 +904,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       return _confirmEntryDelete(entry);
                     },
                     onDismissed: (_) async {
-                      final messenger = ScaffoldMessenger.of(context);
-                      await widget.controller.deleteEntry(entry.id);
-                      messenger.showSnackBar(
-                        SnackBar(content: Text('${entry.title} deleted')),
-                      );
+                      await _deleteEntryWithFeedback(entry);
                     },
                     child: Card(
                       child: ExpansionTile(
@@ -842,15 +924,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         ),
                         title: Text(entry.title),
                         subtitle: Text(_buildEntrySubtitle(entry, category)),
-                        trailing: Text(
-                          '${entry.type == EntryType.expense ? '-' : '+'}${AppFormatters.currency(entry.amount, symbol: widget.controller.currencyCode)}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            color: entry.type == EntryType.expense
-                                ? AppColors.danger
-                                : AppColors.success,
-                          ),
-                        ),
+                        trailing: trailing,
                         children: [
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -871,51 +945,73 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                   const SizedBox(height: 8),
                                   const _TransferEntryBanner(),
                                 ],
+                                if (isDeleting) ...[
+                                  const SizedBox(height: 12),
+                                  const Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.2,
+                                        ),
+                                      ),
+                                      SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text('Deleting transaction...'),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                                 const SizedBox(height: 12),
                                 Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
                                   children: [
                                     TextButton(
-                                      onPressed: () async {
-                                        await _showEntryDetails(
-                                          context,
-                                          entry,
-                                          category,
-                                        );
-                                      },
+                                      onPressed: isDeleting
+                                          ? null
+                                          : () async => _showEntryDetails(
+                                              context,
+                                              entry,
+                                              category,
+                                            ),
                                       child: const Text('View'),
                                     ),
                                     if (!isRecurringOccurrence &&
                                         !isTransferEntry)
                                       TextButton(
-                                        onPressed: () async {
-                                          await _showEntryEditor(entry);
-                                        },
+                                        onPressed: isDeleting
+                                            ? null
+                                            : () async =>
+                                                  _showEntryEditor(entry),
                                         child: const Text('Edit'),
                                       ),
                                     if (!isRecurringOccurrence)
                                       TextButton(
-                                        onPressed: () async {
-                                          final messenger =
-                                              ScaffoldMessenger.of(context);
-                                          final shouldDelete =
-                                              await _confirmEntryDelete(entry);
-                                          if (shouldDelete) {
-                                            await widget.controller.deleteEntry(
-                                              entry.id,
-                                            );
-                                            messenger.showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                  '${entry.title} deleted',
-                                                ),
-                                              ),
-                                            );
-                                            setState(() {});
-                                          }
-                                        },
-                                        child: const Text('Delete'),
+                                        onPressed: isDeleting
+                                            ? null
+                                            : () async {
+                                                final shouldDelete =
+                                                    await _confirmEntryDelete(
+                                                      entry,
+                                                    );
+                                                if (shouldDelete) {
+                                                  await _deleteEntryWithFeedback(
+                                                    entry,
+                                                  );
+                                                }
+                                              },
+                                        child: isDeleting
+                                            ? const SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2.2,
+                                                    ),
+                                              )
+                                            : const Text('Delete'),
                                       ),
                                   ],
                                 ),
@@ -1664,6 +1760,7 @@ class _AmountRangeField extends StatelessWidget {
     return TextField(
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [AmountInputFormatter()],
       onChanged: onChanged,
       decoration: InputDecoration(labelText: label, prefixText: 'NGN '),
     );

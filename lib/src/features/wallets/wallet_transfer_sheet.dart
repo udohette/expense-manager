@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/amount_input_formatter.dart';
 import '../../data/models/wallet_account.dart';
 import '../../data/services/app_controller.dart';
 
@@ -19,6 +20,7 @@ class _WalletTransferSheetState extends State<WalletTransferSheet> {
   WalletAccount? _fromWallet;
   WalletAccount? _toWallet;
   DateTime _date = DateTime.now();
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -97,6 +99,7 @@ class _WalletTransferSheetState extends State<WalletTransferSheet> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+              inputFormatters: [AmountInputFormatter()],
               decoration: const InputDecoration(labelText: 'Amount'),
             ),
             const SizedBox(height: 12),
@@ -131,12 +134,28 @@ class _WalletTransferSheetState extends State<WalletTransferSheet> {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: _submit,
+                onPressed: _isSubmitting ? null : _submit,
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   padding: const EdgeInsets.symmetric(vertical: 18),
                 ),
-                child: const Text('Transfer funds'),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_isSubmitting) ...[
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Text(_isSubmitting ? 'Transferring...' : 'Transfer funds'),
+                  ],
+                ),
               ),
             ),
           ],
@@ -146,7 +165,12 @@ class _WalletTransferSheetState extends State<WalletTransferSheet> {
   }
 
   Future<void> _submit() async {
-    final amount = double.tryParse(_amountController.text.trim());
+    if (_isSubmitting) {
+      return;
+    }
+    final amount = double.tryParse(
+      AmountInputFormatter.normalize(_amountController.text),
+    );
     if (_fromWallet == null ||
         _toWallet == null ||
         _fromWallet!.id == _toWallet!.id ||
@@ -160,16 +184,29 @@ class _WalletTransferSheetState extends State<WalletTransferSheet> {
       return;
     }
 
-    await widget.controller.transferBetweenWallets(
-      fromWalletId: _fromWallet!.id,
-      toWalletId: _toWallet!.id,
-      amount: amount,
-      date: _date,
-      note: _noteController.text.trim(),
-    );
+    setState(() => _isSubmitting = true);
+    try {
+      await widget.controller.transferBetweenWallets(
+        fromWalletId: _fromWallet!.id,
+        toWalletId: _toWallet!.id,
+        amount: amount,
+        date: _date,
+        note: _noteController.text.trim(),
+      );
 
-    if (mounted) {
-      Navigator.of(context).pop();
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
 }

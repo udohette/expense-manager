@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/amount_input_formatter.dart';
 import '../../data/models/bill_record.dart';
 import '../../data/models/expense_entry.dart';
 import '../../data/models/wallet_account.dart';
@@ -25,6 +26,7 @@ class _BillFormSheetState extends State<BillFormSheet> {
   WalletAccount? _selectedWallet;
   late DateTime _dueDate;
   late bool _isPaid;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -32,7 +34,7 @@ class _BillFormSheetState extends State<BillFormSheet> {
     final bill = widget.bill;
     _nameController = TextEditingController(text: bill?.name ?? '');
     _amountController = TextEditingController(
-      text: bill != null ? bill.amount.toString() : '',
+      text: bill != null ? AmountInputFormatter.formatValue(bill.amount) : '',
     );
     _noteController = TextEditingController(text: bill?.note ?? '');
     _reminderController = TextEditingController(
@@ -89,6 +91,7 @@ class _BillFormSheetState extends State<BillFormSheet> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+              inputFormatters: [AmountInputFormatter()],
               decoration: const InputDecoration(labelText: 'Amount'),
             ),
             const SizedBox(height: 12),
@@ -182,12 +185,32 @@ class _BillFormSheetState extends State<BillFormSheet> {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: _submit,
+                onPressed: _isSubmitting ? null : _submit,
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   padding: const EdgeInsets.symmetric(vertical: 18),
                 ),
-                child: Text(widget.bill == null ? 'Save bill' : 'Update bill'),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_isSubmitting) ...[
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Text(
+                      _isSubmitting
+                          ? (widget.bill == null ? 'Saving...' : 'Updating...')
+                          : (widget.bill == null ? 'Save bill' : 'Update bill'),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -197,7 +220,12 @@ class _BillFormSheetState extends State<BillFormSheet> {
   }
 
   Future<void> _submit() async {
-    final amount = double.tryParse(_amountController.text.trim());
+    if (_isSubmitting) {
+      return;
+    }
+    final amount = double.tryParse(
+      AmountInputFormatter.normalize(_amountController.text),
+    );
     final reminderDays = int.tryParse(_reminderController.text.trim()) ?? 3;
     if (_nameController.text.trim().isEmpty ||
         amount == null ||
@@ -211,26 +239,39 @@ class _BillFormSheetState extends State<BillFormSheet> {
       return;
     }
 
-    final bill = BillRecord(
-      id: widget.bill?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
-      name: _nameController.text.trim(),
-      amount: amount,
-      dueDate: _dueDate,
-      frequency: _frequency,
-      reminderDaysBefore: reminderDays.clamp(0, 30),
-      isPaid: _isPaid,
-      note: _noteController.text.trim(),
-      walletAccountId: _selectedWallet!.id,
-    );
+    setState(() => _isSubmitting = true);
+    try {
+      final bill = BillRecord(
+        id: widget.bill?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+        name: _nameController.text.trim(),
+        amount: amount,
+        dueDate: _dueDate,
+        frequency: _frequency,
+        reminderDaysBefore: reminderDays.clamp(0, 30),
+        isPaid: _isPaid,
+        note: _noteController.text.trim(),
+        walletAccountId: _selectedWallet!.id,
+      );
 
-    if (widget.bill == null) {
-      await widget.controller.addBill(bill);
-    } else {
-      await widget.controller.updateBill(bill);
-    }
+      if (widget.bill == null) {
+        await widget.controller.addBill(bill);
+      } else {
+        await widget.controller.updateBill(bill);
+      }
 
-    if (mounted) {
-      Navigator.of(context).pop();
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
 }

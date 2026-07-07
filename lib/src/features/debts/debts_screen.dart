@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/amount_input_formatter.dart';
 import '../../core/utils/app_formatters.dart';
 import '../../data/models/debt_record.dart';
 import '../../data/services/app_controller.dart';
@@ -303,8 +304,11 @@ class _DebtsScreenState extends State<DebtsScreen> {
 
   Future<void> _showPaymentRecorder(DebtRecord debt) async {
     final controller = TextEditingController(
-      text: debt.installmentAmount > 0 ? debt.installmentAmount.toString() : '',
+      text: debt.installmentAmount > 0
+          ? AmountInputFormatter.formatValue(debt.installmentAmount)
+          : '',
     );
+    var isSubmitting = false;
     final amount = await showModalBottomSheet<double>(
       context: context,
       isScrollControlled: true,
@@ -333,19 +337,43 @@ class _DebtsScreenState extends State<DebtsScreen> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
+                inputFormatters: [AmountInputFormatter()],
                 decoration: const InputDecoration(labelText: 'Payment amount'),
                 autofocus: true,
               ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
-                child: FilledButton(
-                  onPressed: () {
-                    Navigator.of(
-                      context,
-                    ).pop(double.tryParse(controller.text.trim()));
-                  },
-                  child: const Text('Save payment'),
+                child: StatefulBuilder(
+                  builder: (context, setSheetState) => FilledButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () {
+                            setSheetState(() => isSubmitting = true);
+                            Navigator.of(context).pop(
+                              double.tryParse(
+                                AmountInputFormatter.normalize(controller.text),
+                              ),
+                            );
+                          },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isSubmitting) ...[
+                          const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                        ],
+                        Text(isSubmitting ? 'Saving...' : 'Save payment'),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],

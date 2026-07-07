@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/amount_input_formatter.dart';
 import '../../data/models/budget_plan.dart';
 import '../../data/models/expense_category.dart';
 import '../../data/services/app_controller.dart';
@@ -21,6 +22,7 @@ class _BudgetFormSheetState extends State<BudgetFormSheet> {
   ExpenseCategory? _category;
   late BudgetPeriod _period;
   late DateTime _startDate;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -28,7 +30,9 @@ class _BudgetFormSheetState extends State<BudgetFormSheet> {
     final budget = widget.budget;
     _nameController = TextEditingController(text: budget?.name ?? '');
     _limitController = TextEditingController(
-      text: budget != null ? budget.limit.toString() : '',
+      text: budget != null
+          ? AmountInputFormatter.formatValue(budget.limit)
+          : '',
     );
     _category = budget?.categoryId != null
         ? widget.controller.findCategory(budget!.categoryId!)
@@ -79,6 +83,7 @@ class _BudgetFormSheetState extends State<BudgetFormSheet> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+              inputFormatters: [AmountInputFormatter()],
               decoration: const InputDecoration(labelText: 'Budget limit'),
             ),
             const SizedBox(height: 12),
@@ -143,13 +148,35 @@ class _BudgetFormSheetState extends State<BudgetFormSheet> {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: _submit,
+                onPressed: _isSubmitting ? null : _submit,
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   padding: const EdgeInsets.symmetric(vertical: 18),
                 ),
-                child: Text(
-                  widget.budget == null ? 'Save budget' : 'Update budget',
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_isSubmitting) ...[
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Text(
+                      _isSubmitting
+                          ? (widget.budget == null
+                                ? 'Saving...'
+                                : 'Updating...')
+                          : (widget.budget == null
+                                ? 'Save budget'
+                                : 'Update budget'),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -160,7 +187,12 @@ class _BudgetFormSheetState extends State<BudgetFormSheet> {
   }
 
   Future<void> _submit() async {
-    final limit = double.tryParse(_limitController.text.trim());
+    if (_isSubmitting) {
+      return;
+    }
+    final limit = double.tryParse(
+      AmountInputFormatter.normalize(_limitController.text),
+    );
     if (_nameController.text.trim().isEmpty || limit == null || limit <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -170,23 +202,38 @@ class _BudgetFormSheetState extends State<BudgetFormSheet> {
       return;
     }
 
-    final budget = BudgetPlan(
-      id: widget.budget?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
-      name: _nameController.text.trim(),
-      limit: limit,
-      categoryId: _category?.id,
-      startDate: _startDate,
-      period: _period,
-    );
+    setState(() => _isSubmitting = true);
+    try {
+      final budget = BudgetPlan(
+        id:
+            widget.budget?.id ??
+            DateTime.now().microsecondsSinceEpoch.toString(),
+        name: _nameController.text.trim(),
+        limit: limit,
+        categoryId: _category?.id,
+        startDate: _startDate,
+        period: _period,
+      );
 
-    if (widget.budget == null) {
-      await widget.controller.addBudget(budget);
-    } else {
-      await widget.controller.updateBudget(budget);
-    }
+      if (widget.budget == null) {
+        await widget.controller.addBudget(budget);
+      } else {
+        await widget.controller.updateBudget(budget);
+      }
 
-    if (mounted) {
-      Navigator.of(context).pop();
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
 }

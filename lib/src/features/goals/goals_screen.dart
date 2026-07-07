@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/amount_input_formatter.dart';
 import '../../core/utils/app_formatters.dart';
 import '../../data/models/savings_goal.dart';
 import '../../data/services/app_controller.dart';
@@ -270,6 +271,7 @@ class _GoalCard extends StatelessWidget {
 
   Future<void> _showContributionSheet(BuildContext context) async {
     var contributionText = '';
+    var isSubmitting = false;
     final amount = await showModalBottomSheet<double>(
       context: context,
       isScrollControlled: true,
@@ -297,13 +299,16 @@ class _GoalCard extends StatelessWidget {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
+                inputFormatters: [AmountInputFormatter()],
                 decoration: const InputDecoration(
                   labelText: 'Contribution amount',
                 ),
                 autofocus: true,
                 onChanged: (value) => contributionText = value,
                 onSubmitted: (value) {
-                  Navigator.of(context).pop(double.tryParse(value.trim()));
+                  Navigator.of(
+                    context,
+                  ).pop(double.tryParse(AmountInputFormatter.normalize(value)));
                 },
               ),
               const SizedBox(height: 20),
@@ -317,13 +322,38 @@ class _GoalCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: FilledButton(
-                      onPressed: () {
-                        Navigator.of(
-                          context,
-                        ).pop(double.tryParse(contributionText.trim()));
-                      },
-                      child: const Text('Save'),
+                    child: StatefulBuilder(
+                      builder: (context, setSheetState) => FilledButton(
+                        onPressed: isSubmitting
+                            ? null
+                            : () {
+                                setSheetState(() => isSubmitting = true);
+                                Navigator.of(context).pop(
+                                  double.tryParse(
+                                    AmountInputFormatter.normalize(
+                                      contributionText,
+                                    ),
+                                  ),
+                                );
+                              },
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isSubmitting) ...[
+                              const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                            ],
+                            Text(isSubmitting ? 'Saving...' : 'Save'),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ],

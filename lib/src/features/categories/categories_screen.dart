@@ -145,6 +145,7 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
 
   IconData _selectedIcon = Icons.shopping_bag_rounded;
   Color _selectedColor = AppColors.primary;
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -234,8 +235,24 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: _submit,
-                child: const Text('Save category'),
+                onPressed: _isSubmitting ? null : _submit,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_isSubmitting) ...[
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Text(_isSubmitting ? 'Saving...' : 'Save category'),
+                  ],
+                ),
               ),
             ),
           ],
@@ -245,22 +262,35 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
   }
 
   Future<void> _submit() async {
-    if (_nameController.text.trim().isEmpty) {
+    if (_isSubmitting || _nameController.text.trim().isEmpty) {
       return;
     }
 
-    await widget.controller.addCategory(
-      ExpenseCategory(
-        id: '${widget.type.name}-${DateTime.now().microsecondsSinceEpoch}',
-        name: _nameController.text.trim(),
-        iconCodePoint: _selectedIcon.codePoint,
-        colorValue: _selectedColor.toARGB32(),
-        type: widget.type,
-      ),
-    );
+    setState(() => _isSubmitting = true);
+    try {
+      await widget.controller.addCategory(
+        ExpenseCategory(
+          id: '${widget.type.name}-${DateTime.now().microsecondsSinceEpoch}',
+          name: _nameController.text.trim(),
+          iconCodePoint: _selectedIcon.codePoint,
+          colorValue: _selectedColor.toARGB32(),
+          type: widget.type,
+        ),
+      );
 
-    if (mounted) {
-      Navigator.of(context).pop();
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
 }

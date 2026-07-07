@@ -18,6 +18,7 @@ class _WalletFormSheetState extends State<WalletFormSheet> {
   late final TextEditingController _nameController;
   late final TextEditingController _noteController;
   late WalletKind _kind;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -87,12 +88,34 @@ class _WalletFormSheetState extends State<WalletFormSheet> {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: _submit,
+                onPressed: _isSubmitting ? null : _submit,
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   padding: const EdgeInsets.symmetric(vertical: 18),
                 ),
-                child: Text(widget.wallet == null ? 'Save wallet' : 'Update'),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_isSubmitting) ...[
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Text(
+                      _isSubmitting
+                          ? (widget.wallet == null
+                                ? 'Saving...'
+                                : 'Updating...')
+                          : (widget.wallet == null ? 'Save wallet' : 'Update'),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -102,6 +125,9 @@ class _WalletFormSheetState extends State<WalletFormSheet> {
   }
 
   Future<void> _submit() async {
+    if (_isSubmitting) {
+      return;
+    }
     if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
@@ -109,25 +135,40 @@ class _WalletFormSheetState extends State<WalletFormSheet> {
       return;
     }
 
-    final preset = _presetForKind(_kind);
-    final wallet = WalletAccount(
-      id: widget.wallet?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
-      name: _nameController.text.trim(),
-      kind: _kind,
-      colorValue: widget.wallet?.colorValue ?? preset.color.toARGB32(),
-      iconCodePoint: widget.wallet?.iconCodePoint ?? preset.icon.codePoint,
-      note: _noteController.text.trim(),
-      isDefault: widget.wallet?.isDefault ?? false,
-    );
+    setState(() => _isSubmitting = true);
+    try {
+      final preset = _presetForKind(_kind);
+      final wallet = WalletAccount(
+        id:
+            widget.wallet?.id ??
+            DateTime.now().microsecondsSinceEpoch.toString(),
+        name: _nameController.text.trim(),
+        kind: _kind,
+        colorValue: widget.wallet?.colorValue ?? preset.color.toARGB32(),
+        iconCodePoint: widget.wallet?.iconCodePoint ?? preset.icon.codePoint,
+        note: _noteController.text.trim(),
+        isDefault: widget.wallet?.isDefault ?? false,
+      );
 
-    if (widget.wallet == null) {
-      await widget.controller.addWallet(wallet);
-    } else {
-      await widget.controller.updateWallet(wallet);
-    }
+      if (widget.wallet == null) {
+        await widget.controller.addWallet(wallet);
+      } else {
+        await widget.controller.updateWallet(wallet);
+      }
 
-    if (mounted) {
-      Navigator.of(context).pop();
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
 

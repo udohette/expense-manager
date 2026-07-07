@@ -3,6 +3,7 @@ import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/amount_input_formatter.dart';
 import '../../data/models/debt_record.dart';
 import '../../data/models/expense_entry.dart';
 import '../../data/services/app_controller.dart';
@@ -32,6 +33,7 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
   RecurrenceFrequency _repaymentFrequency = RecurrenceFrequency.none;
   String? _contactId;
   bool _isPickingContact = false;
+  bool _isSubmitting = false;
   List<Contact> _cachedContacts = const [];
 
   @override
@@ -40,18 +42,18 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
     final debt = widget.debt;
     _nameController = TextEditingController(text: debt?.personName ?? '');
     _amountController = TextEditingController(
-      text: debt != null ? debt.amount.toString() : '',
+      text: debt != null ? AmountInputFormatter.formatValue(debt.amount) : '',
     );
     _phoneController = TextEditingController(text: debt?.phoneNumber ?? '');
     _noteController = TextEditingController(text: debt?.note ?? '');
     _amountPaidController = TextEditingController(
       text: debt != null && debt.amountPaid > 0
-          ? debt.amountPaid.toString()
+          ? AmountInputFormatter.formatValue(debt.amountPaid)
           : '',
     );
     _installmentAmountController = TextEditingController(
       text: debt != null && debt.installmentAmount > 0
-          ? debt.installmentAmount.toString()
+          ? AmountInputFormatter.formatValue(debt.installmentAmount)
           : '',
     );
     _type = debt?.type ?? DebtType.owedToMe;
@@ -166,6 +168,7 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+              inputFormatters: [AmountInputFormatter()],
               decoration: const InputDecoration(labelText: 'Amount'),
             ),
             const SizedBox(height: 12),
@@ -174,6 +177,7 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+              inputFormatters: [AmountInputFormatter()],
               decoration: const InputDecoration(
                 labelText: 'Amount paid so far',
               ),
@@ -204,6 +208,7 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+              inputFormatters: [AmountInputFormatter()],
               decoration: const InputDecoration(
                 labelText: 'Installment amount',
               ),
@@ -295,12 +300,32 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: _submit,
+                onPressed: _isSubmitting ? null : _submit,
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   padding: const EdgeInsets.symmetric(vertical: 18),
                 ),
-                child: Text(widget.debt == null ? 'Save debt' : 'Update debt'),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_isSubmitting) ...[
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Text(
+                      _isSubmitting
+                          ? (widget.debt == null ? 'Saving...' : 'Updating...')
+                          : (widget.debt == null ? 'Save debt' : 'Update debt'),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -400,10 +425,22 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
   }
 
   Future<void> _submit() async {
-    final amount = double.tryParse(_amountController.text.trim());
-    final amountPaid = double.tryParse(_amountPaidController.text.trim()) ?? 0;
+    if (_isSubmitting) {
+      return;
+    }
+    final amount = double.tryParse(
+      AmountInputFormatter.normalize(_amountController.text),
+    );
+    final amountPaid =
+        double.tryParse(
+          AmountInputFormatter.normalize(_amountPaidController.text),
+        ) ??
+        0;
     final installmentAmount =
-        double.tryParse(_installmentAmountController.text.trim()) ?? 0;
+        double.tryParse(
+          AmountInputFormatter.normalize(_installmentAmountController.text),
+        ) ??
+        0;
     if (_nameController.text.trim().isEmpty ||
         amount == null ||
         amount <= 0 ||
@@ -418,34 +455,47 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
       return;
     }
 
-    final debt = DebtRecord(
-      id: widget.debt?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
-      personName: _nameController.text.trim(),
-      amount: amount,
-      type: _type,
-      status: _status,
-      personSource: _source,
-      createdAt: widget.debt?.createdAt ?? DateTime.now(),
-      phoneNumber: _phoneController.text.trim().isEmpty
-          ? null
-          : _phoneController.text.trim(),
-      note: _noteController.text.trim(),
-      contactId: _contactId,
-      dueDate: _dueDate,
-      amountPaid: amountPaid,
-      installmentAmount: installmentAmount,
-      nextInstallmentDate: _nextInstallmentDate,
-      repaymentFrequency: _repaymentFrequency,
-    );
+    setState(() => _isSubmitting = true);
+    try {
+      final debt = DebtRecord(
+        id: widget.debt?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+        personName: _nameController.text.trim(),
+        amount: amount,
+        type: _type,
+        status: _status,
+        personSource: _source,
+        createdAt: widget.debt?.createdAt ?? DateTime.now(),
+        phoneNumber: _phoneController.text.trim().isEmpty
+            ? null
+            : _phoneController.text.trim(),
+        note: _noteController.text.trim(),
+        contactId: _contactId,
+        dueDate: _dueDate,
+        amountPaid: amountPaid,
+        installmentAmount: installmentAmount,
+        nextInstallmentDate: _nextInstallmentDate,
+        repaymentFrequency: _repaymentFrequency,
+      );
 
-    if (widget.debt == null) {
-      await widget.controller.addDebt(debt);
-    } else {
-      await widget.controller.updateDebt(debt);
-    }
+      if (widget.debt == null) {
+        await widget.controller.addDebt(debt);
+      } else {
+        await widget.controller.updateDebt(debt);
+      }
 
-    if (mounted) {
-      Navigator.of(context).pop();
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/amount_input_formatter.dart';
 import '../../data/models/savings_goal.dart';
 import '../../data/services/app_controller.dart';
 
@@ -20,6 +21,7 @@ class _GoalFormSheetState extends State<GoalFormSheet> {
   late final TextEditingController _currentController;
   late final TextEditingController _noteController;
   DateTime? _targetDate;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -27,10 +29,14 @@ class _GoalFormSheetState extends State<GoalFormSheet> {
     final goal = widget.goal;
     _nameController = TextEditingController(text: goal?.name ?? '');
     _targetController = TextEditingController(
-      text: goal != null ? goal.targetAmount.toString() : '',
+      text: goal != null
+          ? AmountInputFormatter.formatValue(goal.targetAmount)
+          : '',
     );
     _currentController = TextEditingController(
-      text: goal != null ? goal.currentAmount.toString() : '',
+      text: goal != null
+          ? AmountInputFormatter.formatValue(goal.currentAmount)
+          : '',
     );
     _noteController = TextEditingController(text: goal?.note ?? '');
     _targetDate = goal?.targetDate;
@@ -76,6 +82,7 @@ class _GoalFormSheetState extends State<GoalFormSheet> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+              inputFormatters: [AmountInputFormatter()],
               decoration: const InputDecoration(labelText: 'Target amount'),
             ),
             const SizedBox(height: 12),
@@ -84,6 +91,7 @@ class _GoalFormSheetState extends State<GoalFormSheet> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+              inputFormatters: [AmountInputFormatter()],
               decoration: const InputDecoration(labelText: 'Saved so far'),
             ),
             const SizedBox(height: 12),
@@ -122,12 +130,32 @@ class _GoalFormSheetState extends State<GoalFormSheet> {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: _submit,
+                onPressed: _isSubmitting ? null : _submit,
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   padding: const EdgeInsets.symmetric(vertical: 18),
                 ),
-                child: Text(widget.goal == null ? 'Save goal' : 'Update goal'),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_isSubmitting) ...[
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Text(
+                      _isSubmitting
+                          ? (widget.goal == null ? 'Saving...' : 'Updating...')
+                          : (widget.goal == null ? 'Save goal' : 'Update goal'),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -149,8 +177,17 @@ class _GoalFormSheetState extends State<GoalFormSheet> {
   }
 
   Future<void> _submit() async {
-    final targetAmount = double.tryParse(_targetController.text.trim());
-    final currentAmount = double.tryParse(_currentController.text.trim()) ?? 0;
+    if (_isSubmitting) {
+      return;
+    }
+    final targetAmount = double.tryParse(
+      AmountInputFormatter.normalize(_targetController.text),
+    );
+    final currentAmount =
+        double.tryParse(
+          AmountInputFormatter.normalize(_currentController.text),
+        ) ??
+        0;
     if (_nameController.text.trim().isEmpty ||
         targetAmount == null ||
         targetAmount <= 0 ||
@@ -163,24 +200,37 @@ class _GoalFormSheetState extends State<GoalFormSheet> {
       return;
     }
 
-    final goal = SavingsGoal(
-      id: widget.goal?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
-      name: _nameController.text.trim(),
-      targetAmount: targetAmount,
-      currentAmount: currentAmount,
-      createdAt: widget.goal?.createdAt ?? DateTime.now(),
-      note: _noteController.text.trim(),
-      targetDate: _targetDate,
-    );
+    setState(() => _isSubmitting = true);
+    try {
+      final goal = SavingsGoal(
+        id: widget.goal?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+        name: _nameController.text.trim(),
+        targetAmount: targetAmount,
+        currentAmount: currentAmount,
+        createdAt: widget.goal?.createdAt ?? DateTime.now(),
+        note: _noteController.text.trim(),
+        targetDate: _targetDate,
+      );
 
-    if (widget.goal == null) {
-      await widget.controller.addGoal(goal);
-    } else {
-      await widget.controller.updateGoal(goal);
-    }
+      if (widget.goal == null) {
+        await widget.controller.addGoal(goal);
+      } else {
+        await widget.controller.updateGoal(goal);
+      }
 
-    if (mounted) {
-      Navigator.of(context).pop();
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
 }

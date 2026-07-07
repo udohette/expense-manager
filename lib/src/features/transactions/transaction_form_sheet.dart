@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/utils/amount_input_formatter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/expense_category.dart';
 import '../../data/models/expense_entry.dart';
@@ -29,6 +30,7 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
   WalletAccount? _selectedWallet;
   late DateTime _date;
   DateTime? _recurrenceEndDate;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -36,7 +38,7 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
     final entry = widget.entry;
     _titleController = TextEditingController(text: entry?.title ?? '');
     _amountController = TextEditingController(
-      text: entry != null ? entry.amount.toString() : '',
+      text: entry != null ? AmountInputFormatter.formatValue(entry.amount) : '',
     );
     _noteController = TextEditingController(text: entry?.note ?? '');
     _tagController = TextEditingController(text: entry?.tag ?? '');
@@ -136,6 +138,7 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+              inputFormatters: [AmountInputFormatter()],
               decoration: const InputDecoration(labelText: 'Amount'),
             ),
             const SizedBox(height: 12),
@@ -298,13 +301,17 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: _submit,
+                onPressed: _isSubmitting ? null : _submit,
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   padding: const EdgeInsets.symmetric(vertical: 18),
                 ),
-                child: Text(
-                  widget.entry == null ? 'Save transaction' : 'Update',
+                child: _SheetSubmitButtonChild(
+                  isSubmitting: _isSubmitting,
+                  idleLabel: widget.entry == null
+                      ? 'Save transaction'
+                      : 'Update',
+                  busyLabel: widget.entry == null ? 'Saving...' : 'Updating...',
                 ),
               ),
             ),
@@ -315,7 +322,12 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
   }
 
   Future<void> _submit() async {
-    final amount = double.tryParse(_amountController.text.trim());
+    if (_isSubmitting) {
+      return;
+    }
+    final amount = double.tryParse(
+      AmountInputFormatter.normalize(_amountController.text),
+    );
     if (_titleController.text.trim().isEmpty ||
         amount == null ||
         amount <= 0 ||
@@ -329,33 +341,79 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
       return;
     }
 
-    final entry = ExpenseEntry(
-      id: widget.entry?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
-      title: _titleController.text.trim(),
-      amount: amount,
-      date: _date,
-      categoryId: _selectedCategory!.id,
-      type: _type,
-      paymentMethod: _paymentMethodController.text.trim(),
-      note: _noteController.text.trim(),
-      tag: _tagController.text.trim(),
-      walletAccountId: _selectedWallet!.id,
-      recurrenceFrequency: _isRecurring
-          ? _recurrenceFrequency
-          : RecurrenceFrequency.none,
-      recurrenceEndDate: _isRecurring ? _recurrenceEndDate : null,
-      isRecurringTemplate: _isRecurring,
-      recurrenceTemplateId: widget.entry?.recurrenceTemplateId ?? '',
+    setState(() => _isSubmitting = true);
+    try {
+      final entry = ExpenseEntry(
+        id:
+            widget.entry?.id ??
+            DateTime.now().microsecondsSinceEpoch.toString(),
+        title: _titleController.text.trim(),
+        amount: amount,
+        date: _date,
+        categoryId: _selectedCategory!.id,
+        type: _type,
+        paymentMethod: _paymentMethodController.text.trim(),
+        note: _noteController.text.trim(),
+        tag: _tagController.text.trim(),
+        walletAccountId: _selectedWallet!.id,
+        recurrenceFrequency: _isRecurring
+            ? _recurrenceFrequency
+            : RecurrenceFrequency.none,
+        recurrenceEndDate: _isRecurring ? _recurrenceEndDate : null,
+        isRecurringTemplate: _isRecurring,
+        recurrenceTemplateId: widget.entry?.recurrenceTemplateId ?? '',
+      );
+
+      if (widget.entry == null) {
+        await widget.controller.addEntry(entry);
+      } else {
+        await widget.controller.updateEntry(entry);
+      }
+
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+}
+
+class _SheetSubmitButtonChild extends StatelessWidget {
+  const _SheetSubmitButtonChild({
+    required this.isSubmitting,
+    required this.idleLabel,
+    required this.busyLabel,
+  });
+
+  final bool isSubmitting;
+  final String idleLabel;
+  final String busyLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isSubmitting) {
+      return Text(idleLabel);
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+        ),
+        const SizedBox(width: 12),
+        Text(busyLabel),
+      ],
     );
-
-    if (widget.entry == null) {
-      await widget.controller.addEntry(entry);
-    } else {
-      await widget.controller.updateEntry(entry);
-    }
-
-    if (mounted) {
-      Navigator.of(context).pop();
-    }
   }
 }
