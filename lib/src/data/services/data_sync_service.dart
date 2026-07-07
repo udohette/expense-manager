@@ -316,7 +316,10 @@ class DataSyncService {
     final staleIds = remoteIds.difference(localIds).toList();
 
     if (localRows.isNotEmpty) {
-      await _client!.from(table).upsert(localRows, onConflict: 'id');
+      await _upsertCollectionWithCompatibility(
+        table: table,
+        localRows: localRows,
+      );
     }
 
     if (staleIds.isNotEmpty) {
@@ -337,6 +340,48 @@ class DataSyncService {
         .map((row) => row['id'] as String)
         .whereType<String>()
         .toSet();
+  }
+
+  Future<void> _upsertCollectionWithCompatibility({
+    required String table,
+    required List<Map<String, dynamic>> localRows,
+  }) async {
+    var rowsToSync = localRows;
+    while (true) {
+      try {
+        await _client!.from(table).upsert(rowsToSync, onConflict: 'id');
+        return;
+      } on PostgrestException catch (error) {
+        final missingColumn = _extractMissingColumnName(error);
+        if (missingColumn == null) {
+          rethrow;
+        }
+
+        var changed = false;
+        final sanitizedRows = rowsToSync.map((row) {
+          if (!row.containsKey(missingColumn)) {
+            return row;
+          }
+          changed = true;
+          final copy = Map<String, dynamic>.from(row);
+          copy.remove(missingColumn);
+          return copy;
+        }).toList();
+
+        if (!changed) {
+          rethrow;
+        }
+        rowsToSync = sanitizedRows;
+      }
+    }
+  }
+
+  String? _extractMissingColumnName(PostgrestException error) {
+    final match = RegExp(
+      r"Could not find the '([^']+)' column",
+      caseSensitive: false,
+    ).firstMatch(error.message);
+    return match?.group(1);
   }
 
   Future<_RemoteSnapshot> _fetchRemoteSnapshot() async {
