@@ -27,7 +27,6 @@ class AuthController extends ChangeNotifier {
 
   Future<void> initialize() async {
     final client = _client;
-    _currentUser = client?.auth.currentUser;
     _subscription = client?.auth.onAuthStateChange.listen((data) {
       _currentUser = data.session?.user ?? client.auth.currentUser;
       _errorMessage = null;
@@ -42,6 +41,24 @@ class AuthController extends ChangeNotifier {
       }
       notifyListeners();
     });
+    _currentUser = client?.auth.currentUser;
+    if (client != null && kIsWeb) {
+      final isRecoveryLink = _isRecoveryLink(Uri.base);
+      if (isRecoveryLink) {
+        _isPasswordRecovery = true;
+        _infoMessage = 'Set a new password to finish account recovery.';
+      }
+      if (_isAuthCallbackLink(Uri.base)) {
+        try {
+          await client.auth.getSessionFromUrl(Uri.base);
+          _currentUser = client.auth.currentUser;
+        } on AuthException catch (error) {
+          _errorMessage = error.message;
+        } catch (error) {
+          _errorMessage = error.toString();
+        }
+      }
+    }
     notifyListeners();
   }
 
@@ -76,6 +93,23 @@ class AuthController extends ChangeNotifier {
       _infoMessage = response.session != null || _currentUser != null
           ? 'Account created successfully.'
           : 'Account created. Check your email to confirm it, then sign in.';
+    });
+  }
+
+  Future<void> signInWithGoogle({String? redirectTo}) async {
+    await _runAuthCall(() async {
+      final client = _client;
+      if (client == null) {
+        return;
+      }
+      final launched = await client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: redirectTo,
+      );
+      if (!launched) {
+        throw 'Could not open the Google sign-in flow.';
+      }
+      _infoMessage = 'Continue with Google to finish signing in.';
     });
   }
 
@@ -122,6 +156,19 @@ class AuthController extends ChangeNotifier {
     _errorMessage = null;
     _infoMessage = null;
     notifyListeners();
+  }
+
+  bool _isRecoveryLink(Uri uri) {
+    return uri.queryParameters['mode'] == 'recovery' ||
+        uri.queryParameters['type'] == 'recovery' ||
+        uri.fragment.contains('type=recovery');
+  }
+
+  bool _isAuthCallbackLink(Uri uri) {
+    return uri.queryParameters.containsKey('code') ||
+        uri.queryParameters.containsKey('error') ||
+        uri.fragment.contains('access_token=') ||
+        uri.fragment.contains('refresh_token=');
   }
 
   Future<void> _runAuthCall(Future<void> Function() operation) async {

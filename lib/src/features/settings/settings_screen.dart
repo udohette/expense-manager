@@ -12,6 +12,23 @@ class SettingsScreen extends StatelessWidget {
 
   final AppController controller;
 
+  Future<void> _handleSignOut(BuildContext context) async {
+    await controller.authController.signOut();
+    if (!context.mounted) {
+      return;
+    }
+    if (controller.authController.errorMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(controller.authController.errorMessage!)),
+      );
+      return;
+    }
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => SplashScreen(controller: controller)),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -52,6 +69,28 @@ class SettingsScreen extends StatelessWidget {
                         height: 1.5,
                       ),
                     ),
+                    if (controller.authController.isSignedIn) ...[
+                      const SizedBox(height: 18),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Chip(
+                            avatar: const Icon(Icons.verified_user_rounded),
+                            label: Text(
+                              controller.authController.currentUserEmail ??
+                                  'Signed in',
+                            ),
+                          ),
+                          FilledButton.icon(
+                            onPressed: () => _handleSignOut(context),
+                            icon: const Icon(Icons.logout_rounded),
+                            label: const Text('Log out'),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -131,19 +170,7 @@ class SettingsScreen extends StatelessWidget {
                         'Stop syncing on this device until you sign in again',
                       ),
                       onTap: controller.authController.isSignedIn
-                          ? () async {
-                              await controller.authController.signOut();
-                              if (!context.mounted) {
-                                return;
-                              }
-                              Navigator.of(context).pushAndRemoveUntil(
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      SplashScreen(controller: controller),
-                                ),
-                                (route) => false,
-                              );
-                            }
+                          ? () => _handleSignOut(context)
                           : null,
                     ),
                   ],

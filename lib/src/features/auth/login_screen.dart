@@ -6,6 +6,7 @@ import '../../data/services/app_controller.dart';
 import '../../widgets/branded_logo.dart';
 import '../dashboard/home_shell.dart';
 import '../onboarding/onboarding_screen.dart';
+import 'password_reset_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({required this.controller, super.key});
@@ -24,13 +25,60 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isSignUp = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _handledAuthNavigation = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.authController.addListener(_handleAuthStateChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handleAuthStateChanged();
+    });
+  }
 
   @override
   void dispose() {
+    widget.controller.authController.removeListener(_handleAuthStateChanged);
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleAuthStateChanged() async {
+    if (!mounted || _handledAuthNavigation) {
+      return;
+    }
+
+    final auth = widget.controller.authController;
+    if (auth.isPasswordRecovery) {
+      _handledAuthNavigation = true;
+      await Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => PasswordResetScreen(controller: widget.controller),
+        ),
+        (route) => false,
+      );
+      return;
+    }
+
+    if (!auth.isSignedIn || _isSignUp) {
+      return;
+    }
+
+    _handledAuthNavigation = true;
+    await widget.controller.syncFromCloudOnLaunch();
+    if (!mounted) {
+      return;
+    }
+
+    final next = widget.controller.onboardingComplete
+        ? HomeShell(controller: widget.controller)
+        : OnboardingScreen(controller: widget.controller);
+    await Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => next),
+      (route) => false,
+    );
   }
 
   Future<void> _submit() async {
@@ -74,18 +122,11 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    await widget.controller.syncFromCloudOnLaunch();
-    if (!mounted) {
+    if (_handledAuthNavigation) {
       return;
     }
 
-    final next = widget.controller.onboardingComplete
-        ? HomeShell(controller: widget.controller)
-        : OnboardingScreen(controller: widget.controller);
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => next),
-      (route) => false,
-    );
+    await _handleAuthStateChanged();
   }
 
   Future<void> _sendResetEmail() async {
@@ -100,11 +141,23 @@ class _LoginScreenState extends State<LoginScreen> {
 
     String? redirectTo;
     if (kIsWeb) {
-      redirectTo = Uri.base.origin;
+      redirectTo = Uri.parse(
+        Uri.base.origin,
+      ).replace(queryParameters: const {'mode': 'recovery'}).toString();
     }
 
     await widget.controller.authController.sendPasswordResetEmail(
       email: email,
+      redirectTo: redirectTo,
+    );
+  }
+
+  Future<void> _continueWithGoogle() async {
+    String? redirectTo;
+    if (kIsWeb) {
+      redirectTo = Uri.base.origin;
+    }
+    await widget.controller.authController.signInWithGoogle(
       redirectTo: redirectTo,
     );
   }
@@ -264,6 +317,70 @@ class _LoginScreenState extends State<LoginScreen> {
                                     : _isSignUp
                                     ? 'Create account'
                                     : 'Sign in',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              const Expanded(child: Divider()),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                child: Text(
+                                  'or',
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        color: AppColors.textSecondary,
+                                      ),
+                                ),
+                              ),
+                              const Expanded(child: Divider()),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton(
+                              onPressed: auth.isBusy ? null : _continueWithGoogle,
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 18,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    width: 22,
+                                    height: 22,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: AppColors.textSecondary
+                                            .withValues(alpha: 0.3),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'G',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                            color: AppColors.primary,
+                                          ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    _isSignUp
+                                        ? 'Continue with Google'
+                                        : 'Sign in with Google',
+                                  ),
+                                ],
                               ),
                             ),
                           ),

@@ -38,6 +38,35 @@ If those `dart-define` values are omitted, the app stays in local-only Hive mode
 - For Flutter web, the app uses the current site origin as the recovery redirect.
 - In Supabase Auth settings, set your Site URL and allowed redirect URLs to the URL where this app runs, so the recovery link can return to the app and open the password reset screen.
 
+## Google sign-in
+
+- The auth screen now supports Google OAuth through Supabase.
+- This uses one Google flow for both sign-in and sign-up. If the Google account is new, Supabase creates the user on first login.
+
+Setup:
+
+1. In Google Cloud Console, create an OAuth client for `Web application`.
+2. Add your app origins as Authorized JavaScript origins:
+   - `http://localhost:3000` if you test locally on web
+   - your Vercel production URL, for example `https://expense-manager-ei-team2.vercel.app`
+3. In the same Google OAuth client, add the Supabase callback URL as an Authorized redirect URI:
+   - `https://wurjhwzphfomuasdjunf.supabase.co/auth/v1/callback`
+4. Copy the Google OAuth client ID and client secret.
+5. In Supabase:
+   - go to `Authentication -> Providers -> Google`
+   - enable Google
+   - paste the client ID into `Client IDs`
+   - paste the client secret into `Client Secret (for OAuth)`
+   - save
+6. In `Authentication -> URL Configuration`, keep your frontend URL in:
+   - `Site URL`
+   - `Redirect URLs`
+
+Notes:
+
+- On Supabase, Google sign-up is the same flow as Google sign-in. There is no separate Google sign-up button required.
+- On web, this app redirects back to the current site origin after Google auth.
+
 ## Deployment shape
 
 - Flutter web frontend: Vercel
