@@ -284,20 +284,18 @@ class DataSyncService {
       local: localCategories,
       idOf: (item) => item.id,
     );
-    final mergedEntries = _mergeCollectionsById(
+    final mergedEntries = _mergeEntries(
       remote: remoteSnapshot.entries,
       local: localEntries,
-      idOf: (item) => item.id,
     );
     final mergedBudgets = _mergeCollectionsById(
       remote: remoteSnapshot.budgets,
       local: localBudgets,
       idOf: (item) => item.id,
     );
-    final mergedBills = _mergeCollectionsById(
+    final mergedBills = _mergeBills(
       remote: remoteSnapshot.bills,
       local: localBills,
-      idOf: (item) => item.id,
     );
     final mergedDebts = _mergeCollectionsById(
       remote: remoteSnapshot.debts,
@@ -355,6 +353,97 @@ class DataSyncService {
 
     for (final item in local) {
       merged.putIfAbsent(idOf(item), () => item);
+    }
+
+    return merged.values.toList();
+  }
+
+  List<ExpenseEntry> _mergeEntries({
+    required List<ExpenseEntry> remote,
+    required List<ExpenseEntry> local,
+  }) {
+    if (remote.isEmpty) {
+      return local;
+    }
+    if (local.isEmpty) {
+      return remote;
+    }
+
+    final localById = {for (final item in local) item.id: item};
+    final merged = <String, ExpenseEntry>{};
+
+    for (final remoteItem in remote) {
+      final localItem = localById[remoteItem.id];
+      if (localItem == null) {
+        merged[remoteItem.id] = remoteItem;
+        continue;
+      }
+      merged[remoteItem.id] = remoteItem.copyWith(
+        walletAccountId: remoteItem.walletAccountId.trim().isNotEmpty
+            ? remoteItem.walletAccountId
+            : localItem.walletAccountId,
+        accountHint: remoteItem.accountHint.trim().isNotEmpty
+            ? remoteItem.accountHint
+            : localItem.accountHint,
+        institutionName: remoteItem.institutionName.trim().isNotEmpty
+            ? remoteItem.institutionName
+            : localItem.institutionName,
+        merchantOrSender: remoteItem.merchantOrSender.trim().isNotEmpty
+            ? remoteItem.merchantOrSender
+            : localItem.merchantOrSender,
+        recurrenceTemplateId: remoteItem.recurrenceTemplateId.trim().isNotEmpty
+            ? remoteItem.recurrenceTemplateId
+            : localItem.recurrenceTemplateId,
+        recurrenceEndDate:
+            remoteItem.recurrenceEndDate ?? localItem.recurrenceEndDate,
+        recurrenceInterval: remoteItem.recurrenceInterval > 0
+            ? remoteItem.recurrenceInterval
+            : localItem.recurrenceInterval,
+        isRecurringTemplate:
+            remoteItem.isRecurringTemplate || localItem.isRecurringTemplate,
+        recurrenceFrequency:
+            remoteItem.recurrenceFrequency != RecurrenceFrequency.none
+            ? remoteItem.recurrenceFrequency
+            : localItem.recurrenceFrequency,
+      );
+    }
+
+    for (final localItem in local) {
+      merged.putIfAbsent(localItem.id, () => localItem);
+    }
+
+    return merged.values.toList();
+  }
+
+  List<BillRecord> _mergeBills({
+    required List<BillRecord> remote,
+    required List<BillRecord> local,
+  }) {
+    if (remote.isEmpty) {
+      return local;
+    }
+    if (local.isEmpty) {
+      return remote;
+    }
+
+    final localById = {for (final item in local) item.id: item};
+    final merged = <String, BillRecord>{};
+
+    for (final remoteItem in remote) {
+      final localItem = localById[remoteItem.id];
+      if (localItem == null) {
+        merged[remoteItem.id] = remoteItem;
+        continue;
+      }
+      merged[remoteItem.id] = remoteItem.copyWith(
+        walletAccountId: remoteItem.walletAccountId.trim().isNotEmpty
+            ? remoteItem.walletAccountId
+            : localItem.walletAccountId,
+      );
+    }
+
+    for (final localItem in local) {
+      merged.putIfAbsent(localItem.id, () => localItem);
     }
 
     return merged.values.toList();

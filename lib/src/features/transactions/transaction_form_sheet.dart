@@ -343,9 +343,12 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
 
     setState(() => _isSubmitting = true);
     try {
+      final selectedWallet = _selectedWallet!;
+      final existingEntry = widget.entry;
+      final fallbackWalletReference = selectedWallet.name.trim();
       final entry = ExpenseEntry(
         id:
-            widget.entry?.id ??
+            existingEntry?.id ??
             DateTime.now().microsecondsSinceEpoch.toString(),
         title: _titleController.text.trim(),
         amount: amount,
@@ -355,13 +358,32 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
         paymentMethod: _paymentMethodController.text.trim(),
         note: _noteController.text.trim(),
         tag: _tagController.text.trim(),
-        walletAccountId: _selectedWallet!.id,
+        source: existingEntry?.source ?? TransactionSource.manual,
+        externalId: existingEntry?.externalId ?? '',
+        merchantOrSender:
+            existingEntry?.merchantOrSender.trim().isNotEmpty == true
+            ? existingEntry!.merchantOrSender
+            : fallbackWalletReference,
+        accountHint: existingEntry?.accountHint.trim().isNotEmpty == true
+            ? existingEntry!.accountHint
+            : fallbackWalletReference,
+        institutionName:
+            existingEntry?.institutionName.trim().isNotEmpty == true
+            ? existingEntry!.institutionName
+            : (_paymentMethodController.text.trim().toLowerCase().contains(
+                    'bank',
+                  )
+                  ? fallbackWalletReference
+                  : ''),
+        rawMessage: existingEntry?.rawMessage ?? '',
+        importedAt: existingEntry?.importedAt,
+        walletAccountId: selectedWallet.id,
         recurrenceFrequency: _isRecurring
             ? _recurrenceFrequency
             : RecurrenceFrequency.none,
         recurrenceEndDate: _isRecurring ? _recurrenceEndDate : null,
         isRecurringTemplate: _isRecurring,
-        recurrenceTemplateId: widget.entry?.recurrenceTemplateId ?? '',
+        recurrenceTemplateId: existingEntry?.recurrenceTemplateId ?? '',
       );
 
       if (widget.entry == null) {

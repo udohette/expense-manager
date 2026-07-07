@@ -408,6 +408,9 @@ class AppController extends ChangeNotifier {
 
   int _smsEntryRichnessScore(ExpenseEntry entry) {
     var score = 0;
+    if (entry.walletAccountId.trim().isNotEmpty) {
+      score += 12;
+    }
     if (entry.rawMessage.trim().isNotEmpty) {
       score += 5;
     }
@@ -428,6 +431,9 @@ class AppController extends ChangeNotifier {
       score += 2;
     }
     if (entry.note.trim().isNotEmpty) {
+      score += 1;
+    }
+    if (entry.tag.trim().isNotEmpty) {
       score += 1;
     }
     return score;
@@ -860,6 +866,16 @@ class AppController extends ChangeNotifier {
       return findWallet(entry.walletAccountId) ?? defaultWallet;
     }
 
+    final exactWalletMatch = _findWalletByReference([
+      entry.accountHint,
+      entry.institutionName,
+      entry.merchantOrSender,
+      entry.note,
+    ]);
+    if (exactWalletMatch != null) {
+      return exactWalletMatch;
+    }
+
     final method = entry.paymentMethod.trim().toLowerCase();
     final rawText =
         '${entry.institutionName} ${entry.accountHint} ${entry.note}'
@@ -881,6 +897,32 @@ class AppController extends ChangeNotifier {
       return walletForKind(WalletKind.bank) ?? defaultWallet;
     }
     return defaultWallet;
+  }
+
+  WalletAccount? _findWalletByReference(Iterable<String> candidates) {
+    final normalizedCandidates = candidates
+        .map((value) => value.trim().toLowerCase())
+        .where((value) => value.isNotEmpty)
+        .toList();
+    if (normalizedCandidates.isEmpty) {
+      return null;
+    }
+
+    for (final wallet in _wallets) {
+      final walletId = wallet.id.trim().toLowerCase();
+      final walletName = wallet.name.trim().toLowerCase();
+      final kindName = wallet.kind.name.toLowerCase();
+      final hasMatch = normalizedCandidates.any(
+        (candidate) =>
+            candidate == walletId ||
+            candidate == walletName ||
+            candidate == kindName,
+      );
+      if (hasMatch) {
+        return wallet;
+      }
+    }
+    return null;
   }
 
   WalletAccount? walletForKind(WalletKind kind) {
