@@ -48,16 +48,6 @@ class AuthController extends ChangeNotifier {
         _isPasswordRecovery = true;
         _infoMessage = 'Set a new password to finish account recovery.';
       }
-      if (_isAuthCallbackLink(Uri.base)) {
-        try {
-          await client.auth.getSessionFromUrl(Uri.base);
-          _currentUser = client.auth.currentUser;
-        } on AuthException catch (error) {
-          _errorMessage = error.message;
-        } catch (error) {
-          _errorMessage = error.toString();
-        }
-      }
     }
     notifyListeners();
   }
@@ -162,13 +152,6 @@ class AuthController extends ChangeNotifier {
     return uri.queryParameters['mode'] == 'recovery' ||
         uri.queryParameters['type'] == 'recovery' ||
         uri.fragment.contains('type=recovery');
-  }
-
-  bool _isAuthCallbackLink(Uri uri) {
-    return uri.queryParameters.containsKey('code') ||
-        uri.queryParameters.containsKey('error') ||
-        uri.fragment.contains('access_token=') ||
-        uri.fragment.contains('refresh_token=');
   }
 
   Future<void> _runAuthCall(Future<void> Function() operation) async {

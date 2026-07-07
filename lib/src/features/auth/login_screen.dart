@@ -6,6 +6,7 @@ import '../../data/services/app_controller.dart';
 import '../../widgets/branded_logo.dart';
 import '../dashboard/home_shell.dart';
 import '../onboarding/onboarding_screen.dart';
+import 'auth_visuals.dart';
 import 'password_reset_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -17,7 +18,8 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -26,10 +28,15 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _handledAuthNavigation = false;
+  late final AnimationController _ambientController;
 
   @override
   void initState() {
     super.initState();
+    _ambientController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 18),
+    )..repeat();
     widget.controller.authController.addListener(_handleAuthStateChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _handleAuthStateChanged();
@@ -38,6 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    _ambientController.dispose();
     widget.controller.authController.removeListener(_handleAuthStateChanged);
     _emailController.dispose();
     _passwordController.dispose();
@@ -165,254 +173,478 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = widget.controller.authController;
+    final theme = Theme.of(context);
 
     return AnimatedBuilder(
       animation: auth,
       builder: (context, _) {
         return Scaffold(
-          body: SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 420),
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const BrandedLogo(height: 44),
-                          const SizedBox(height: 24),
-                          Text(
-                            _isSignUp ? 'Create your workspace' : 'Sign in',
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            'Use the same account on every device so expenses, budgets, debts, and settings stay in sync.',
-                            style: Theme.of(context).textTheme.bodyLarge
-                                ?.copyWith(
-                                  color: AppColors.textSecondary,
-                                  height: 1.5,
-                                ),
-                          ),
-                          const SizedBox(height: 24),
-                          Form(
-                            key: _formKey,
-                            child: Column(
-                              children: [
-                                TextFormField(
-                                  controller: _emailController,
-                                  keyboardType: TextInputType.emailAddress,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Email',
-                                    prefixIcon: Icon(
-                                      Icons.mail_outline_rounded,
-                                    ),
-                                  ),
-                                  validator: (value) {
-                                    final email = value?.trim() ?? '';
-                                    if (email.isEmpty || !email.contains('@')) {
-                                      return 'Enter a valid email address.';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 16),
-                                TextFormField(
-                                  controller: _passwordController,
-                                  obscureText: _obscurePassword,
-                                  decoration: InputDecoration(
-                                    labelText: 'Password',
-                                    prefixIcon: const Icon(
-                                      Icons.lock_outline_rounded,
-                                    ),
-                                    suffixIcon: IconButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          _obscurePassword = !_obscurePassword;
-                                        });
-                                      },
-                                      icon: Icon(
-                                        _obscurePassword
-                                            ? Icons.visibility_off_rounded
-                                            : Icons.visibility_rounded,
-                                      ),
-                                    ),
-                                  ),
-                                  validator: (value) {
-                                    if ((value ?? '').length < 6) {
-                                      return 'Use at least 6 characters.';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                if (_isSignUp) ...[
-                                  const SizedBox(height: 16),
-                                  TextFormField(
-                                    controller: _confirmPasswordController,
-                                    obscureText: _obscureConfirmPassword,
-                                    decoration: InputDecoration(
-                                      labelText: 'Confirm password',
-                                      prefixIcon: const Icon(
-                                        Icons.verified_user_outlined,
-                                      ),
-                                      suffixIcon: IconButton(
-                                        onPressed: () {
-                                          setState(() {
-                                            _obscureConfirmPassword =
-                                                !_obscureConfirmPassword;
-                                          });
-                                        },
-                                        icon: Icon(
-                                          _obscureConfirmPassword
-                                              ? Icons.visibility_off_rounded
-                                              : Icons.visibility_rounded,
-                                        ),
-                                      ),
-                                    ),
-                                    validator: (value) {
-                                      if (value != _passwordController.text) {
-                                        return 'Passwords do not match.';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                          if (auth.errorMessage != null) ...[
-                            const SizedBox(height: 16),
-                            Text(
-                              auth.errorMessage!,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: AppColors.danger),
-                            ),
-                          ],
-                          if (auth.infoMessage != null) ...[
-                            const SizedBox(height: 16),
-                            Text(
-                              auth.infoMessage!,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: AppColors.success),
-                            ),
-                          ],
-                          const SizedBox(height: 24),
-                          SizedBox(
-                            width: double.infinity,
-                            child: FilledButton(
-                              onPressed: auth.isBusy ? null : _submit,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 18,
-                                ),
-                              ),
-                              child: Text(
-                                auth.isBusy
-                                    ? 'Please wait...'
-                                    : _isSignUp
-                                    ? 'Create account'
-                                    : 'Sign in',
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              const Expanded(child: Divider()),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                ),
-                                child: Text(
-                                  'or',
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(
-                                        color: AppColors.textSecondary,
-                                      ),
-                                ),
-                              ),
-                              const Expanded(child: Divider()),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton(
-                              onPressed: auth.isBusy ? null : _continueWithGoogle,
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 18,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    width: 22,
-                                    height: 22,
-                                    alignment: Alignment.center,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: AppColors.textSecondary
-                                            .withValues(alpha: 0.3),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      'G',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w800,
-                                            color: AppColors.primary,
-                                          ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    _isSignUp
-                                        ? 'Continue with Google'
-                                        : 'Sign in with Google',
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          if (!_isSignUp) ...[
-                            const SizedBox(height: 12),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: auth.isBusy ? null : _sendResetEmail,
-                                child: const Text('Forgot password?'),
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 12),
-                          TextButton(
-                            onPressed: auth.isBusy
-                                ? null
-                                : () => setState(() {
-                                    _isSignUp = !_isSignUp;
-                                    _confirmPasswordController.clear();
-                                  }),
-                            child: Text(
-                              _isSignUp
-                                  ? 'Already have an account? Sign in'
-                                  : 'Need an account? Create one',
-                            ),
-                          ),
-                        ],
+          body: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFF7F9FC), Color(0xFFE9EEF7)],
+              ),
+            ),
+            child: SafeArea(
+              child: Stack(
+                children: [
+                  Positioned(
+                    top: -60,
+                    right: -30,
+                    child: Container(
+                      width: 220,
+                      height: 220,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.primary.withValues(alpha: 0.08),
                       ),
                     ),
                   ),
-                ),
+                  Positioned(
+                    top: 120,
+                    left: -40,
+                    child: Container(
+                      width: 160,
+                      height: 160,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFF8FA8CF).withValues(alpha: 0.12),
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: FinanceAuthBackdrop(
+                        progress: _ambientController,
+                        isSignUp: _isSignUp,
+                      ),
+                    ),
+                  ),
+                  Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 20,
+                      ),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 430),
+                        child: Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(18),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        AppColors.primaryDark,
+                                        AppColors.primary.withValues(
+                                          alpha: 0.92,
+                                        ),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(24),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        width: 124,
+                                        height: 72,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 10,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.08,
+                                              ),
+                                              blurRadius: 18,
+                                              offset: const Offset(0, 8),
+                                            ),
+                                          ],
+                                        ),
+                                        child: const Center(
+                                          child: BrandedLogo(height: 28),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              _isSignUp
+                                                  ? 'Create your workspace'
+                                                  : 'Welcome back',
+                                              style: theme.textTheme.titleLarge
+                                                  ?.copyWith(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.w800,
+                                                  ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              _isSignUp
+                                                  ? 'Start with cloud sync enabled so your records stay available on every device.'
+                                                  : 'Sign in to keep expenses, budgets, debts, and settings in sync.',
+                                              style: theme.textTheme.bodyMedium
+                                                  ?.copyWith(
+                                                    color: Colors.white
+                                                        .withValues(
+                                                          alpha: 0.84,
+                                                        ),
+                                                    height: 1.45,
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 22),
+                                Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.background,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: AppColors.border,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: FilledButton(
+                                          onPressed: auth.isBusy || !_isSignUp
+                                              ? null
+                                              : () => setState(() {
+                                                  _isSignUp = false;
+                                                  _confirmPasswordController
+                                                      .clear();
+                                                }),
+                                          style: FilledButton.styleFrom(
+                                            elevation: 0,
+                                            backgroundColor: !_isSignUp
+                                                ? AppColors.primary
+                                                : Colors.transparent,
+                                            foregroundColor: !_isSignUp
+                                                ? Colors.white
+                                                : AppColors.textSecondary,
+                                            disabledBackgroundColor: !_isSignUp
+                                                ? AppColors.primary
+                                                : Colors.transparent,
+                                            disabledForegroundColor: !_isSignUp
+                                                ? Colors.white
+                                                : AppColors.textSecondary,
+                                          ),
+                                          child: const Text('Sign in'),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: FilledButton(
+                                          onPressed: auth.isBusy || _isSignUp
+                                              ? null
+                                              : () => setState(() {
+                                                  _isSignUp = true;
+                                                }),
+                                          style: FilledButton.styleFrom(
+                                            elevation: 0,
+                                            backgroundColor: _isSignUp
+                                                ? AppColors.primary
+                                                : Colors.transparent,
+                                            foregroundColor: _isSignUp
+                                                ? Colors.white
+                                                : AppColors.textSecondary,
+                                            disabledBackgroundColor: _isSignUp
+                                                ? AppColors.primary
+                                                : Colors.transparent,
+                                            disabledForegroundColor: _isSignUp
+                                                ? Colors.white
+                                                : AppColors.textSecondary,
+                                          ),
+                                          child: const Text('Create account'),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 22),
+                                Text(
+                                  _isSignUp ? 'Account details' : 'Account access',
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  _isSignUp
+                                      ? 'Use an email address you can verify. You can also continue with Google below.'
+                                      : 'Enter your email and password, or continue with Google.',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.textSecondary,
+                                    height: 1.45,
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                Form(
+                                  key: _formKey,
+                                  child: Column(
+                                    children: [
+                                      TextFormField(
+                                        controller: _emailController,
+                                        keyboardType:
+                                            TextInputType.emailAddress,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Email address',
+                                          prefixIcon: Icon(
+                                            Icons.mail_outline_rounded,
+                                          ),
+                                        ),
+                                        validator: (value) {
+                                          final email = value?.trim() ?? '';
+                                          if (email.isEmpty ||
+                                              !email.contains('@')) {
+                                            return 'Enter a valid email address.';
+                                          }
+                                          return null;
+                                        },
+                                      ),
+                                      const SizedBox(height: 16),
+                                      TextFormField(
+                                        controller: _passwordController,
+                                        obscureText: _obscurePassword,
+                                        decoration: InputDecoration(
+                                          labelText: _isSignUp
+                                              ? 'Create password'
+                                              : 'Password',
+                                          prefixIcon: const Icon(
+                                            Icons.lock_outline_rounded,
+                                          ),
+                                          suffixIcon: IconButton(
+                                            onPressed: () {
+                                              setState(() {
+                                                _obscurePassword =
+                                                    !_obscurePassword;
+                                              });
+                                            },
+                                            icon: Icon(
+                                              _obscurePassword
+                                                  ? Icons.visibility_off_rounded
+                                                  : Icons.visibility_rounded,
+                                            ),
+                                          ),
+                                        ),
+                                        validator: (value) {
+                                          if ((value ?? '').length < 6) {
+                                            return 'Use at least 6 characters.';
+                                          }
+                                          return null;
+                                        },
+                                      ),
+                                      if (_isSignUp) ...[
+                                        const SizedBox(height: 16),
+                                        TextFormField(
+                                          controller:
+                                              _confirmPasswordController,
+                                          obscureText:
+                                              _obscureConfirmPassword,
+                                          decoration: InputDecoration(
+                                            labelText: 'Confirm password',
+                                            prefixIcon: const Icon(
+                                              Icons.verified_user_outlined,
+                                            ),
+                                            suffixIcon: IconButton(
+                                              onPressed: () {
+                                                setState(() {
+                                                  _obscureConfirmPassword =
+                                                      !_obscureConfirmPassword;
+                                                });
+                                              },
+                                              icon: Icon(
+                                                _obscureConfirmPassword
+                                                    ? Icons
+                                                          .visibility_off_rounded
+                                                    : Icons
+                                                          .visibility_rounded,
+                                              ),
+                                            ),
+                                          ),
+                                          validator: (value) {
+                                            if (value !=
+                                                _passwordController.text) {
+                                              return 'Passwords do not match.';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                if (auth.errorMessage != null) ...[
+                                  const SizedBox(height: 16),
+                                  AuthStatusBanner(
+                                    icon: Icons.error_outline_rounded,
+                                    message: auth.errorMessage!,
+                                    background: const Color(0xFFFBEAEA),
+                                    foreground: AppColors.danger,
+                                  ),
+                                ],
+                                if (auth.infoMessage != null) ...[
+                                  const SizedBox(height: 16),
+                                  AuthStatusBanner(
+                                    icon: Icons.mark_email_read_rounded,
+                                    message: auth.infoMessage!,
+                                    background: const Color(0xFFE9F7F1),
+                                    foreground: AppColors.success,
+                                  ),
+                                ],
+                                const SizedBox(height: 22),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: FilledButton(
+                                    onPressed: auth.isBusy ? null : _submit,
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: AppColors.primary,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 18,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      auth.isBusy
+                                          ? 'Please wait...'
+                                          : _isSignUp
+                                          ? 'Create account'
+                                          : 'Sign in',
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                Row(
+                                  children: [
+                                    const Expanded(child: Divider()),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                      ),
+                                      child: Text(
+                                        'OR CONTINUE WITH',
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: AppColors.textSecondary,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: 1.1,
+                                            ),
+                                      ),
+                                    ),
+                                    const Expanded(child: Divider()),
+                                  ],
+                                ),
+                                const SizedBox(height: 14),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton(
+                                    onPressed: auth.isBusy
+                                        ? null
+                                        : _continueWithGoogle,
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 16,
+                                      ),
+                                      backgroundColor: Colors.white,
+                                      side: const BorderSide(
+                                        color: AppColors.border,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          width: 30,
+                                          height: 30,
+                                          alignment: Alignment.center,
+                                          decoration: BoxDecoration(
+                                            color: AppColors.background,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: AppColors.border,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'G',
+                                            style: theme.textTheme.titleMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w900,
+                                                  color: AppColors.primary,
+                                                ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          _isSignUp
+                                              ? 'Create account with Google'
+                                              : 'Sign in with Google',
+                                          style: theme.textTheme.bodyLarge
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                if (!_isSignUp) ...[
+                                  const SizedBox(height: 8),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: auth.isBusy
+                                          ? null
+                                          : _sendResetEmail,
+                                      child: const Text('Forgot password?'),
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 8),
+                                Center(
+                                  child: TextButton(
+                                    onPressed: auth.isBusy
+                                        ? null
+                                        : () => setState(() {
+                                            _isSignUp = !_isSignUp;
+                                            _confirmPasswordController.clear();
+                                          }),
+                                    child: Text(
+                                      _isSignUp
+                                          ? 'Already have an account? Sign in'
+                                          : 'Need an account? Create one',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
