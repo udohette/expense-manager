@@ -55,6 +55,7 @@ class AppController extends ChangeNotifier {
   bool _hasActiveRealtimeSync = false;
   bool _pendingRealtimeRefresh = false;
   bool _isMaterializingRecurringEntries = false;
+  bool _suppressReactiveReloads = false;
   DateTime? _lastSyncAt;
   String? _syncErrorMessage;
   Timer? _realtimeRefreshDebounce;
@@ -108,25 +109,38 @@ class AppController extends ChangeNotifier {
     authController.addListener(_onAuthStateChanged);
 
     _subscriptions.add(
-      _storage.categoriesBox.watch().listen((event) => _loadAll()),
+      _storage.categoriesBox.watch().listen((event) => _handleBoxMutation()),
     );
     _subscriptions.add(
       _storage.entriesBox.watch().listen((event) {
-        _loadAll();
+        _handleBoxMutation();
         if (!_isMaterializingRecurringEntries) {
           unawaited(_materializeRecurringEntries());
         }
       }),
     );
     _subscriptions.add(
-      _storage.budgetsBox.watch().listen((event) => _loadAll()),
+      _storage.budgetsBox.watch().listen((event) => _handleBoxMutation()),
     );
-    _subscriptions.add(_storage.billsBox.watch().listen((event) => _loadAll()));
-    _subscriptions.add(_storage.debtsBox.watch().listen((event) => _loadAll()));
-    _subscriptions.add(_storage.goalsBox.watch().listen((event) => _loadAll()));
     _subscriptions.add(
-      _storage.walletsBox.watch().listen((event) => _loadAll()),
+      _storage.billsBox.watch().listen((event) => _handleBoxMutation()),
     );
+    _subscriptions.add(
+      _storage.debtsBox.watch().listen((event) => _handleBoxMutation()),
+    );
+    _subscriptions.add(
+      _storage.goalsBox.watch().listen((event) => _handleBoxMutation()),
+    );
+    _subscriptions.add(
+      _storage.walletsBox.watch().listen((event) => _handleBoxMutation()),
+    );
+  }
+
+  void _handleBoxMutation() {
+    if (_suppressReactiveReloads) {
+      return;
+    }
+    _loadAll();
   }
 
   void _loadAll() {
@@ -1387,11 +1401,15 @@ class AppController extends ChangeNotifier {
     await _runSync(
       () =>
           _syncService.bootstrap(storage: _storage, settings: settingsSnapshot),
+      suppressReactiveReloads: true,
     );
   }
 
   Future<void> refreshFromCloud() async {
-    await _runSync(() => _syncService.pullRemoteSnapshot(storage: _storage));
+    await _runSync(
+      () => _syncService.pullRemoteSnapshot(storage: _storage),
+      suppressReactiveReloads: true,
+    );
   }
 
   Future<void> _pushLocalChanges() async {
@@ -1410,6 +1428,7 @@ class AppController extends ChangeNotifier {
   Future<void> _runSync(
     Future<SyncResult> Function() operation, {
     bool notifyAtStart = true,
+    bool suppressReactiveReloads = false,
   }) async {
     if (!_syncService.isConfigured || _syncInProgress) {
       return;
@@ -1422,6 +1441,9 @@ class AppController extends ChangeNotifier {
     }
 
     try {
+      if (suppressReactiveReloads) {
+        _suppressReactiveReloads = true;
+      }
       final result = await operation();
       if (result.didPullRemoteChanges) {
         _onboardingComplete =
@@ -1442,6 +1464,7 @@ class AppController extends ChangeNotifier {
     } catch (error) {
       _syncErrorMessage = error.toString();
     } finally {
+      _suppressReactiveReloads = false;
       _syncInProgress = false;
       if (_pendingRealtimeRefresh) {
         _pendingRealtimeRefresh = false;

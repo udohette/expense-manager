@@ -34,9 +34,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _startSmsAutoSync();
     unawaited(_ensureSmsPermissionPrompt());
-    if (widget.controller.isSignedIn) {
-      unawaited(widget.controller.refreshFromCloud());
-    }
     unawaited(_startIncomingSmsListener());
   }
 
@@ -52,9 +49,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _startSmsAutoSync(runImmediately: true);
-      if (widget.controller.isSignedIn) {
-        unawaited(widget.controller.refreshFromCloud());
-      }
       unawaited(_startIncomingSmsListener());
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached ||

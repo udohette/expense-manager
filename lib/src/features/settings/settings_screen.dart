@@ -2,17 +2,29 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../data/services/app_controller.dart';
-import '../../widgets/branded_logo.dart';
 import '../../widgets/section_header.dart';
-import '../splash/splash_screen.dart';
 import '../bills/bills_screen.dart';
 import '../categories/categories_screen.dart';
+import '../splash/splash_screen.dart';
 import '../wallets/wallets_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({required this.controller, super.key});
 
   final AppController controller;
+
+  String _displaySyncIssue(String rawMessage) {
+    if (rawMessage.contains("Could not find the '") &&
+        rawMessage.contains("column of 'expense_entries'")) {
+      return 'Your Supabase database schema is older than this app build. '
+          'Sync can continue in compatibility mode, but the database should be updated to the latest schema.';
+    }
+    if (rawMessage.contains('Unable to subscribe to changes')) {
+      return 'Live sync could not be enabled for this account. '
+          'Manual sync still works, but Supabase Realtime needs to be enabled for the synced tables.';
+    }
+    return rawMessage;
+  }
 
   Future<void> _handleSignOut(BuildContext context) async {
     await controller.authController.signOut();
@@ -149,7 +161,13 @@ class SettingsScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const BrandedLogo(height: 54),
+                    Center(
+                      child: Image.asset(
+                        'assets/images/splash.png',
+                        height: 132,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
                     const SizedBox(height: 18),
                     Text(
                       'Eintelix Innovations Limited',
@@ -240,7 +258,9 @@ class SettingsScreen extends StatelessWidget {
                                 final message =
                                     controller.syncErrorMessage == null
                                     ? 'Sync completed.'
-                                    : controller.syncErrorMessage!;
+                                    : _displaySyncIssue(
+                                        controller.syncErrorMessage!,
+                                      );
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(content: Text(message)),
                                 );
@@ -257,7 +277,9 @@ class SettingsScreen extends StatelessWidget {
                           color: AppColors.danger,
                         ),
                         title: const Text('Last sync issue'),
-                        subtitle: Text(controller.syncErrorMessage!),
+                        subtitle: Text(
+                          _displaySyncIssue(controller.syncErrorMessage!),
+                        ),
                       ),
                     ],
                     const Divider(height: 1),
