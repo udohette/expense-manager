@@ -60,6 +60,9 @@ Vercel setup:
    - `SUPABASE_PUBLISHABLE_KEY`
 4. Deploy. Vercel will run the repo build script, install Flutter inside the build container, and publish `build/web`.
 
+Note:
+- This app stores category icons as dynamic code points, so the Vercel web build intentionally uses `--no-tree-shake-icons`.
+
 Recommended values for this project right now:
 
 - `SUPABASE_URL=https://wurjhwzphfomuasdjunf.supabase.co`

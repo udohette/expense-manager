@@ -14,5 +14,6 @@ flutter config --enable-web
 flutter --version
 flutter pub get
 flutter build web --release \
+  --no-tree-shake-icons \
   --dart-define=SUPABASE_URL="${SUPABASE_URL}" \
   --dart-define=SUPABASE_PUBLISHABLE_KEY="${SUPABASE_PUBLISHABLE_KEY}"
