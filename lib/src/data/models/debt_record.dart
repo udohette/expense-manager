@@ -1,5 +1,7 @@
 import 'package:hive/hive.dart';
 
+import 'expense_entry.dart';
+
 enum DebtType { owedToMe, iOwe }
 
 enum DebtStatus { active, settled }
@@ -19,6 +21,10 @@ class DebtRecord extends HiveObject {
     this.note = '',
     this.contactId,
     this.dueDate,
+    this.amountPaid = 0,
+    this.installmentAmount = 0,
+    this.nextInstallmentDate,
+    this.repaymentFrequency = RecurrenceFrequency.none,
   });
 
   final String id;
@@ -32,6 +38,16 @@ class DebtRecord extends HiveObject {
   final String note;
   final String? contactId;
   final DateTime? dueDate;
+  final double amountPaid;
+  final double installmentAmount;
+  final DateTime? nextInstallmentDate;
+  final RecurrenceFrequency repaymentFrequency;
+
+  double get remainingAmount => (amount - amountPaid).clamp(0, double.infinity);
+  double get repaymentProgress =>
+      amount <= 0 ? 0 : (amountPaid / amount).clamp(0.0, 1.0);
+  bool get hasRepaymentPlan =>
+      installmentAmount > 0 || nextInstallmentDate != null;
 
   DebtRecord copyWith({
     String? id,
@@ -45,6 +61,10 @@ class DebtRecord extends HiveObject {
     String? note,
     String? contactId,
     DateTime? dueDate,
+    double? amountPaid,
+    double? installmentAmount,
+    DateTime? nextInstallmentDate,
+    RecurrenceFrequency? repaymentFrequency,
   }) {
     return DebtRecord(
       id: id ?? this.id,
@@ -58,6 +78,10 @@ class DebtRecord extends HiveObject {
       note: note ?? this.note,
       contactId: contactId ?? this.contactId,
       dueDate: dueDate ?? this.dueDate,
+      amountPaid: amountPaid ?? this.amountPaid,
+      installmentAmount: installmentAmount ?? this.installmentAmount,
+      nextInstallmentDate: nextInstallmentDate ?? this.nextInstallmentDate,
+      repaymentFrequency: repaymentFrequency ?? this.repaymentFrequency,
     );
   }
 }
@@ -148,13 +172,17 @@ class DebtRecordAdapter extends TypeAdapter<DebtRecord> {
       note: fields[8] as String? ?? '',
       contactId: fields[9] as String?,
       dueDate: fields[10] as DateTime?,
+      amountPaid: fields[11] as double? ?? 0,
+      installmentAmount: fields[12] as double? ?? 0,
+      nextInstallmentDate: fields[13] as DateTime?,
+      repaymentFrequency: _readRecurrenceFrequency(fields[14]),
     );
   }
 
   @override
   void write(BinaryWriter writer, DebtRecord obj) {
     writer
-      ..writeByte(11)
+      ..writeByte(15)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -176,6 +204,34 @@ class DebtRecordAdapter extends TypeAdapter<DebtRecord> {
       ..writeByte(9)
       ..write(obj.contactId)
       ..writeByte(10)
-      ..write(obj.dueDate);
+      ..write(obj.dueDate)
+      ..writeByte(11)
+      ..write(obj.amountPaid)
+      ..writeByte(12)
+      ..write(obj.installmentAmount)
+      ..writeByte(13)
+      ..write(obj.nextInstallmentDate)
+      ..writeByte(14)
+      ..write(obj.repaymentFrequency);
+  }
+
+  RecurrenceFrequency _readRecurrenceFrequency(dynamic value) {
+    if (value is RecurrenceFrequency) {
+      return value;
+    }
+    if (value is String) {
+      switch (value) {
+        case 'weekly':
+          return RecurrenceFrequency.weekly;
+        case 'monthly':
+          return RecurrenceFrequency.monthly;
+        case 'yearly':
+          return RecurrenceFrequency.yearly;
+        case 'none':
+        default:
+          return RecurrenceFrequency.none;
+      }
+    }
+    return RecurrenceFrequency.none;
   }
 }
