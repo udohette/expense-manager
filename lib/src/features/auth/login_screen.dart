@@ -235,15 +235,20 @@ class _LoginScreenState extends State<LoginScreen>
                               children: [
                                 Center(
                                   child: Container(
+                                    width: double.infinity,
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 360,
+                                      minHeight: 92,
+                                    ),
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 24,
-                                      vertical: 16,
+                                      horizontal: 28,
+                                      vertical: 22,
                                     ),
                                     decoration: BoxDecoration(
                                       color: Colors.white.withValues(
                                         alpha: 0.92,
                                       ),
-                                      borderRadius: BorderRadius.circular(24),
+                                      borderRadius: BorderRadius.circular(28),
                                       boxShadow: [
                                         BoxShadow(
                                           color: AppColors.primary.withValues(
@@ -254,7 +259,10 @@ class _LoginScreenState extends State<LoginScreen>
                                         ),
                                       ],
                                     ),
-                                    child: const BrandedLogo(height: 42),
+                                    child: const FittedBox(
+                                      fit: BoxFit.contain,
+                                      child: BrandedLogo(height: 54),
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: 18),

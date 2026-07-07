@@ -29,6 +29,102 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  Future<bool> _confirmAction({
+    required BuildContext context,
+    required String title,
+    required String message,
+    required String confirmLabel,
+    bool isDestructive = false,
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: isDestructive
+                ? FilledButton.styleFrom(
+                    backgroundColor: AppColors.danger,
+                    foregroundColor: Colors.white,
+                  )
+                : null,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(confirmLabel),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  Future<void> _handleDeleteAllData(BuildContext context) async {
+    final confirmed = await _confirmAction(
+      context: context,
+      title: 'Delete all data?',
+      message:
+          'This will remove your synced expenses, budgets, debts, categories, and settings from this device and the cloud. Your account will remain active.',
+      confirmLabel: 'Delete data',
+      isDestructive: true,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await controller.deleteAllUserData();
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('All account data has been deleted.')),
+      );
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  Future<void> _handleDeleteAccount(BuildContext context) async {
+    final confirmed = await _confirmAction(
+      context: context,
+      title: 'Delete account permanently?',
+      message:
+          'This will permanently delete your account and all synced data from Supabase. This cannot be undone.',
+      confirmLabel: 'Delete account',
+      isDestructive: true,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await controller.deleteAccountPermanently();
+      if (!context.mounted) {
+        return;
+      }
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => SplashScreen(controller: controller)),
+        (route) => false,
+      );
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -171,6 +267,34 @@ class SettingsScreen extends StatelessWidget {
                       ),
                       onTap: controller.authController.isSignedIn
                           ? () => _handleSignOut(context)
+                          : null,
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.delete_sweep_rounded,
+                        color: AppColors.danger,
+                      ),
+                      title: const Text('Delete all data'),
+                      subtitle: const Text(
+                        'Remove your synced app data from this device and the cloud',
+                      ),
+                      onTap: controller.authController.isSignedIn
+                          ? () => _handleDeleteAllData(context)
+                          : null,
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.person_remove_rounded,
+                        color: AppColors.danger,
+                      ),
+                      title: const Text('Delete account permanently'),
+                      subtitle: const Text(
+                        'Permanently delete your account and all associated cloud data',
+                      ),
+                      onTap: controller.authController.isSignedIn
+                          ? () => _handleDeleteAccount(context)
                           : null,
                     ),
                   ],

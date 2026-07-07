@@ -76,6 +76,8 @@ class _BudgetCard extends StatelessWidget {
     final category = budget.categoryId == null
         ? null
         : controller.findCategory(budget.categoryId!);
+    final isOverLimit = ratio >= 1;
+    final isNearLimit = ratio >= 0.8 && ratio < 1;
 
     return Card(
       child: Padding(
@@ -151,6 +153,54 @@ class _BudgetCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (isOverLimit || isNearLimit) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: (isOverLimit ? AppColors.danger : AppColors.warning)
+                      .withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: (isOverLimit
+                            ? AppColors.danger
+                            : AppColors.warning)
+                        .withValues(alpha: 0.24),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isOverLimit
+                          ? Icons.error_rounded
+                          : Icons.warning_amber_rounded,
+                      size: 18,
+                      color: isOverLimit
+                          ? AppColors.danger
+                          : AppColors.warning,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        isOverLimit
+                            ? 'Budget exceeded. Reduce spending or raise the limit.'
+                            : 'Warning: this budget is almost fully used.',
+                        style: TextStyle(
+                          color: isOverLimit
+                              ? AppColors.danger
+                              : AppColors.warning,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

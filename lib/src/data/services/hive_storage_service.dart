@@ -63,4 +63,14 @@ class HiveStorageService {
     await settingsBox.put('currency_code', settings.currencyCode);
     await settingsBox.put('hide_balances', settings.hideBalances);
   }
+
+  Future<void> clearSettings({bool preserveSmsCleanupVersion = true}) async {
+    final smsCleanupVersion = preserveSmsCleanupVersion
+        ? settingsBox.get('sms_cleanup_version')
+        : null;
+    await settingsBox.clear();
+    if (preserveSmsCleanupVersion && smsCleanupVersion != null) {
+      await settingsBox.put('sms_cleanup_version', smsCleanupVersion);
+    }
+  }
 }

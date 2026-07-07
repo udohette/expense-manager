@@ -755,6 +755,33 @@ class AppController extends ChangeNotifier {
     await _pushLocalChanges();
   }
 
+  Future<void> deleteAllUserData() async {
+    if (_syncService.isSignedIn) {
+      await _syncService.deleteAllUserData();
+    }
+
+    await _resetLocalDataForCurrentSession();
+
+    if (_syncService.isSignedIn) {
+      await _pushLocalChanges();
+    }
+  }
+
+  Future<void> deleteAccountPermanently() async {
+    if (!_syncService.isSignedIn) {
+      return;
+    }
+
+    await _syncService.deleteCurrentAccount();
+    await _clearAllLocalState();
+    authController.clearSessionLocally();
+    _hasActiveRealtimeSync = false;
+    _pendingRealtimeRefresh = false;
+    _lastSyncAt = null;
+    _syncErrorMessage = null;
+    notifyListeners();
+  }
+
   Future<void> syncFromCloudOnLaunch() async {
     await _prepareLocalCacheForSignedInUser();
     await _runSync(
@@ -901,6 +928,41 @@ class AppController extends ChangeNotifier {
     _loadAll();
   }
 
+  Future<void> _resetLocalDataForCurrentSession() async {
+    final userId = authController.currentUserId;
+    await _storage.replaceAllData(
+      categories: <ExpenseCategory>[],
+      entries: <ExpenseEntry>[],
+      budgets: <BudgetPlan>[],
+      debts: <DebtRecord>[],
+    );
+    await _storage.clearSettings();
+    _onboardingComplete = false;
+    _hideBalances = false;
+    _currencyCode = 'NGN';
+    await _storage.applySettingsSnapshot(settingsSnapshot);
+    if (userId != null) {
+      await _storage.settingsBox.put(cloudUserIdKey, userId);
+    }
+    await _seedDefaults(includeDemoData: false);
+    _loadAll();
+  }
+
+  Future<void> _clearAllLocalState() async {
+    await _storage.replaceAllData(
+      categories: <ExpenseCategory>[],
+      entries: <ExpenseEntry>[],
+      budgets: <BudgetPlan>[],
+      debts: <DebtRecord>[],
+    );
+    await _storage.clearSettings(preserveSmsCleanupVersion: false);
+    _onboardingComplete = false;
+    _hideBalances = false;
+    _currencyCode = 'NGN';
+    await _seedDefaults(includeDemoData: false);
+    _loadAll();
+  }
+
   double get totalIncome => _entries
       .where((item) => item.type == EntryType.income)
       .fold(0, (sum, item) => sum + item.amount);
@@ -996,6 +1058,26 @@ class AppController extends ChangeNotifier {
         .fold(0, (sum, entry) => sum + entry.amount);
   }
 
+  List<BudgetUsageSnapshot> budgetAlertsForMonth(
+    DateTime month, {
+    double warningThreshold = 0.8,
+  }) {
+    return _budgets
+        .where((budget) => _budgetOverlapsMonth(budget, month))
+        .map((budget) {
+          final spent = spentForBudget(budget);
+          final ratio = budget.limit <= 0 ? 0.0 : spent / budget.limit;
+          return BudgetUsageSnapshot(
+            budget: budget,
+            spent: spent,
+            ratio: ratio,
+          );
+        })
+        .where((snapshot) => snapshot.ratio >= warningThreshold)
+        .toList()
+      ..sort((a, b) => b.ratio.compareTo(a.ratio));
+  }
+
   bool _isWithinBudgetPeriod(DateTime date, BudgetPlan budget) {
     if (budget.period == BudgetPeriod.weekly) {
       final end = budget.startDate.add(const Duration(days: 7));
@@ -1004,6 +1086,19 @@ class AppController extends ChangeNotifier {
 
     return date.year == budget.startDate.year &&
         date.month == budget.startDate.month;
+  }
+
+  bool _budgetOverlapsMonth(BudgetPlan budget, DateTime month) {
+    final monthStart = DateTime(month.year, month.month, 1);
+    final monthEnd = DateTime(month.year, month.month + 1, 1);
+
+    if (budget.period == BudgetPeriod.weekly) {
+      final budgetEnd = budget.startDate.add(const Duration(days: 7));
+      return budget.startDate.isBefore(monthEnd) && budgetEnd.isAfter(monthStart);
+    }
+
+    return budget.startDate.year == month.year &&
+        budget.startDate.month == month.month;
   }
 
   String _randomId() {
@@ -1030,4 +1125,20 @@ class AppController extends ChangeNotifier {
     }
     super.dispose();
   }
+}
+
+class BudgetUsageSnapshot {
+  const BudgetUsageSnapshot({
+    required this.budget,
+    required this.spent,
+    required this.ratio,
+  });
+
+  final BudgetPlan budget;
+  final double spent;
+  final double ratio;
+
+  double get remaining => budget.limit - spent;
+  bool get isOverLimit => ratio >= 1;
+  bool get isNearLimit => ratio >= 0.8 && ratio < 1;
 }

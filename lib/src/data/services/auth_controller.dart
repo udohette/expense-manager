@@ -115,6 +115,15 @@ class AuthController extends ChangeNotifier {
     });
   }
 
+  void clearSessionLocally() {
+    _currentUser = null;
+    _busy = false;
+    _errorMessage = null;
+    _infoMessage = null;
+    _isPasswordRecovery = false;
+    notifyListeners();
+  }
+
   Future<void> sendPasswordResetEmail({
     required String email,
     String? redirectTo,

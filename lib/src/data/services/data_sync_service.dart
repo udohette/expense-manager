@@ -194,6 +194,30 @@ class DataSyncService {
     await client.removeChannel(channel);
   }
 
+  Future<void> deleteAllUserData() async {
+    if (!_canSync) {
+      return;
+    }
+
+    final userId = currentUserId!;
+    for (final table in const [
+      'expense_entries',
+      'budget_plans',
+      'debt_records',
+      'expense_categories',
+      'user_settings',
+    ]) {
+      await _client!.from(table).delete().eq('user_id', userId);
+    }
+  }
+
+  Future<void> deleteCurrentAccount() async {
+    if (!_canSync) {
+      return;
+    }
+    await _client!.rpc('delete_my_account');
+  }
+
   bool get _canSync => _client != null && currentUserId != null;
 
   Future<void> _upsertCollection({
