@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../data/services/app_controller.dart';
+import '../auth/login_screen.dart';
+import '../auth/password_reset_screen.dart';
 import '../dashboard/home_shell.dart';
 import '../onboarding/onboarding_screen.dart';
 
@@ -36,7 +38,12 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
-    final next = widget.controller.onboardingComplete
+    final next = widget.controller.authController.isPasswordRecovery
+        ? PasswordResetScreen(controller: widget.controller)
+        : widget.controller.isCloudSyncEnabled &&
+              !widget.controller.authController.isSignedIn
+        ? LoginScreen(controller: widget.controller)
+        : widget.controller.onboardingComplete
         ? HomeShell(controller: widget.controller)
         : OnboardingScreen(controller: widget.controller);
 

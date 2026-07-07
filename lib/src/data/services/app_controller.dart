@@ -5,16 +5,25 @@ import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../models/app_settings_snapshot.dart';
 import '../models/budget_plan.dart';
 import '../models/debt_record.dart';
 import '../models/expense_category.dart';
 import '../models/expense_entry.dart';
+import 'auth_controller.dart';
+import 'data_sync_service.dart';
 import 'hive_storage_service.dart';
 
 class AppController extends ChangeNotifier {
-  AppController(this._storage);
+  AppController(
+    this._storage, {
+    required this.authController,
+    required DataSyncService syncService,
+  }) : _syncService = syncService;
 
   final HiveStorageService _storage;
+  final DataSyncService _syncService;
+  final AuthController authController;
 
   static const String onboardingKey = 'onboarding_complete';
   static const String currencyKey = 'currency_code';
@@ -26,6 +35,7 @@ class AppController extends ChangeNotifier {
   static const String lastSelectedTypeKey = 'last_selected_type';
   static const String lastSearchTextKey = 'last_search_text';
   static const String smsCleanupVersionKey = 'sms_cleanup_version';
+  static const String cloudUserIdKey = 'cloud_user_id';
   static const int smsCleanupVersion = 3;
 
   late List<ExpenseCategory> _categories;
@@ -35,6 +45,12 @@ class AppController extends ChangeNotifier {
   bool _onboardingComplete = false;
   bool _hideBalances = false;
   String _currencyCode = 'NGN';
+  bool _syncInProgress = false;
+  bool _hasActiveRealtimeSync = false;
+  bool _pendingRealtimeRefresh = false;
+  DateTime? _lastSyncAt;
+  String? _syncErrorMessage;
+  Timer? _realtimeRefreshDebounce;
   final List<StreamSubscription<BoxEvent>> _subscriptions = [];
 
   List<ExpenseCategory> get categories => List.unmodifiable(_categories);
@@ -45,6 +61,17 @@ class AppController extends ChangeNotifier {
   bool get onboardingComplete => _onboardingComplete;
   bool get hideBalances => _hideBalances;
   String get currencyCode => _currencyCode;
+  bool get isCloudSyncEnabled => _syncService.isConfigured;
+  bool get isSignedIn => authController.isSignedIn;
+  bool get isSyncInProgress => _syncInProgress;
+  bool get hasActiveRealtimeSync => _hasActiveRealtimeSync;
+  DateTime? get lastSyncAt => _lastSyncAt;
+  String? get syncErrorMessage => _syncErrorMessage;
+  AppSettingsSnapshot get settingsSnapshot => AppSettingsSnapshot(
+    onboardingComplete: _onboardingComplete,
+    currencyCode: _currencyCode,
+    hideBalances: _hideBalances,
+  );
 
   Future<void> initialize() async {
     _onboardingComplete =
@@ -54,9 +81,16 @@ class AppController extends ChangeNotifier {
     _currencyCode =
         _storage.settingsBox.get(currencyKey, defaultValue: 'NGN') as String;
 
-    await _seedDefaults();
+    await _seedDefaults(includeDemoData: !_syncService.isConfigured);
     await _runSmsImportCleanupIfNeeded();
     _loadAll();
+
+    if (_syncService.isSignedIn) {
+      await syncFromCloudOnLaunch();
+      await _ensureRealtimeSubscription();
+    }
+
+    authController.addListener(_onAuthStateChanged);
 
     _subscriptions.add(
       _storage.categoriesBox.watch().listen((event) => _loadAll()),
@@ -282,7 +316,7 @@ class AppController extends ChangeNotifier {
     return normalized.toIso8601String();
   }
 
-  Future<void> _seedDefaults() async {
+  Future<void> _seedDefaults({required bool includeDemoData}) async {
     if (_storage.categoriesBox.isEmpty) {
       final seedCategories = <ExpenseCategory>[
         ExpenseCategory(
@@ -389,7 +423,7 @@ class AppController extends ChangeNotifier {
       }
     }
 
-    if (_storage.entriesBox.isEmpty) {
+    if (includeDemoData && _storage.entriesBox.isEmpty) {
       final now = DateTime.now();
       final sampleEntries = <ExpenseEntry>[
         ExpenseEntry(
@@ -425,7 +459,7 @@ class AppController extends ChangeNotifier {
       await _storage.entriesBox.addAll(sampleEntries);
     }
 
-    if (_storage.budgetsBox.isEmpty) {
+    if (includeDemoData && _storage.budgetsBox.isEmpty) {
       await _storage.budgetsBox.addAll([
         BudgetPlan(
           id: _randomId(),
@@ -446,7 +480,7 @@ class AppController extends ChangeNotifier {
       ]);
     }
 
-    if (_storage.debtsBox.isEmpty) {
+    if (includeDemoData && _storage.debtsBox.isEmpty) {
       final now = DateTime.now();
       await _storage.debtsBox.addAll([
         DebtRecord(
@@ -495,18 +529,21 @@ class AppController extends ChangeNotifier {
     _onboardingComplete = true;
     await _storage.settingsBox.put(onboardingKey, true);
     notifyListeners();
+    await _pushLocalChanges();
   }
 
   Future<void> updateCurrency(String currencyCode) async {
     _currencyCode = currencyCode;
     await _storage.settingsBox.put(currencyKey, currencyCode);
     notifyListeners();
+    await _pushLocalChanges();
   }
 
   Future<void> setHideBalances(bool hideBalances) async {
     _hideBalances = hideBalances;
     await _storage.settingsBox.put(hideBalancesKey, hideBalances);
     notifyListeners();
+    await _pushLocalChanges();
   }
 
   String? get lastSelectedCategory =>
@@ -606,10 +643,12 @@ class AppController extends ChangeNotifier {
 
   Future<void> addEntry(ExpenseEntry entry) async {
     await _storage.entriesBox.add(entry);
+    await _pushLocalChanges();
   }
 
   Future<void> addEntries(Iterable<ExpenseEntry> entries) async {
     await _storage.entriesBox.addAll(entries);
+    await _pushLocalChanges();
   }
 
   Future<void> updateEntry(ExpenseEntry entry) async {
@@ -621,6 +660,7 @@ class AppController extends ChangeNotifier {
       return;
     }
     await _storage.entriesBox.put(key, entry);
+    await _pushLocalChanges();
   }
 
   Future<void> deleteEntry(String entryId) async {
@@ -632,10 +672,12 @@ class AppController extends ChangeNotifier {
       return;
     }
     await _storage.entriesBox.delete(key);
+    await _pushLocalChanges();
   }
 
   Future<void> addCategory(ExpenseCategory category) async {
     await _storage.categoriesBox.add(category);
+    await _pushLocalChanges();
   }
 
   Future<void> deleteCategory(String categoryId) async {
@@ -652,10 +694,12 @@ class AppController extends ChangeNotifier {
       return;
     }
     await _storage.categoriesBox.delete(key);
+    await _pushLocalChanges();
   }
 
   Future<void> addBudget(BudgetPlan budget) async {
     await _storage.budgetsBox.add(budget);
+    await _pushLocalChanges();
   }
 
   Future<void> updateBudget(BudgetPlan budget) async {
@@ -667,6 +711,7 @@ class AppController extends ChangeNotifier {
       return;
     }
     await _storage.budgetsBox.put(key, budget);
+    await _pushLocalChanges();
   }
 
   Future<void> deleteBudget(String budgetId) async {
@@ -678,10 +723,12 @@ class AppController extends ChangeNotifier {
       return;
     }
     await _storage.budgetsBox.delete(key);
+    await _pushLocalChanges();
   }
 
   Future<void> addDebt(DebtRecord debt) async {
     await _storage.debtsBox.add(debt);
+    await _pushLocalChanges();
   }
 
   Future<void> updateDebt(DebtRecord debt) async {
@@ -693,6 +740,7 @@ class AppController extends ChangeNotifier {
       return;
     }
     await _storage.debtsBox.put(key, debt);
+    await _pushLocalChanges();
   }
 
   Future<void> deleteDebt(String debtId) async {
@@ -704,6 +752,153 @@ class AppController extends ChangeNotifier {
       return;
     }
     await _storage.debtsBox.delete(key);
+    await _pushLocalChanges();
+  }
+
+  Future<void> syncFromCloudOnLaunch() async {
+    await _prepareLocalCacheForSignedInUser();
+    await _runSync(
+      () =>
+          _syncService.bootstrap(storage: _storage, settings: settingsSnapshot),
+    );
+  }
+
+  Future<void> refreshFromCloud() async {
+    await _runSync(() => _syncService.pullRemoteSnapshot(storage: _storage));
+  }
+
+  Future<void> _pushLocalChanges() async {
+    if (!_syncService.isSignedIn) {
+      return;
+    }
+    await _runSync(
+      () => _syncService.pushLocalSnapshot(
+        storage: _storage,
+        settings: settingsSnapshot,
+      ),
+      notifyAtStart: false,
+    );
+  }
+
+  Future<void> _runSync(
+    Future<SyncResult> Function() operation, {
+    bool notifyAtStart = true,
+  }) async {
+    if (!_syncService.isConfigured || _syncInProgress) {
+      return;
+    }
+
+    _syncInProgress = true;
+    _syncErrorMessage = null;
+    if (notifyAtStart) {
+      notifyListeners();
+    }
+
+    try {
+      final result = await operation();
+      if (result.didPullRemoteChanges) {
+        _onboardingComplete =
+            _storage.settingsBox.get(onboardingKey, defaultValue: false)
+                as bool;
+        _hideBalances =
+            _storage.settingsBox.get(hideBalancesKey, defaultValue: false)
+                as bool;
+        _currencyCode =
+            _storage.settingsBox.get(currencyKey, defaultValue: 'NGN')
+                as String;
+        _loadAll();
+      }
+      if (result.didSync) {
+        _lastSyncAt = DateTime.now();
+      }
+      _syncErrorMessage = result.message;
+    } catch (error) {
+      _syncErrorMessage = error.toString();
+    } finally {
+      _syncInProgress = false;
+      if (_pendingRealtimeRefresh) {
+        _pendingRealtimeRefresh = false;
+        unawaited(refreshFromCloud());
+      }
+      notifyListeners();
+    }
+  }
+
+  void _onAuthStateChanged() {
+    unawaited(_syncRealtimeSubscriptionForAuthState());
+  }
+
+  Future<void> _syncRealtimeSubscriptionForAuthState() async {
+    if (!_syncService.isConfigured) {
+      return;
+    }
+
+    if (!authController.isSignedIn) {
+      _realtimeRefreshDebounce?.cancel();
+      _pendingRealtimeRefresh = false;
+      _hasActiveRealtimeSync = false;
+      await _syncService.stopRealtimeSubscription();
+      notifyListeners();
+      return;
+    }
+
+    await syncFromCloudOnLaunch();
+    await _ensureRealtimeSubscription();
+  }
+
+  Future<void> _ensureRealtimeSubscription() async {
+    if (!_syncService.isSignedIn) {
+      return;
+    }
+
+    await _syncService.startRealtimeSubscription(
+      onRemoteChange: _scheduleRealtimeRefresh,
+      onStatusMessage: (message) {
+        _syncErrorMessage = message == 'Live sync connected.' ? null : message;
+        _hasActiveRealtimeSync = message == 'Live sync connected.';
+        notifyListeners();
+      },
+    );
+    _hasActiveRealtimeSync = _syncService.hasActiveRealtimeSubscription;
+    notifyListeners();
+  }
+
+  Future<void> _scheduleRealtimeRefresh() async {
+    _pendingRealtimeRefresh = true;
+    _realtimeRefreshDebounce?.cancel();
+    _realtimeRefreshDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (_syncInProgress) {
+        return;
+      }
+      _pendingRealtimeRefresh = false;
+      unawaited(refreshFromCloud());
+    });
+  }
+
+  Future<void> _prepareLocalCacheForSignedInUser() async {
+    final userId = authController.currentUserId;
+    if (userId == null) {
+      return;
+    }
+
+    final previousUserId = _storage.settingsBox.get(cloudUserIdKey) as String?;
+    if (previousUserId == userId) {
+      return;
+    }
+
+    await _storage.replaceAllData(
+      categories: <ExpenseCategory>[],
+      entries: <ExpenseEntry>[],
+      budgets: <BudgetPlan>[],
+      debts: <DebtRecord>[],
+    );
+    _onboardingComplete = false;
+    _hideBalances = false;
+    _currencyCode = 'NGN';
+    await _storage.applySettingsSnapshot(settingsSnapshot);
+    await _storage.settingsBox.put(cloudUserIdKey, userId);
+    await _seedDefaults(includeDemoData: false);
+    _loadAll();
   }
 
   double get totalIncome => _entries
@@ -827,6 +1022,9 @@ class AppController extends ChangeNotifier {
 
   @override
   void dispose() {
+    authController.removeListener(_onAuthStateChanged);
+    _realtimeRefreshDebounce?.cancel();
+    unawaited(_syncService.stopRealtimeSubscription());
     for (final subscription in _subscriptions) {
       subscription.cancel();
     }
