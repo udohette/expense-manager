@@ -271,26 +271,93 @@ class DataSyncService {
     _RemoteSnapshot remoteSnapshot,
     HiveStorageService storage,
   ) {
+    final localCategories = storage.categoriesBox.values.toList();
+    final localEntries = storage.entriesBox.values.toList();
+    final localBudgets = storage.budgetsBox.values.toList();
     final localBills = storage.billsBox.values.toList();
+    final localDebts = storage.debtsBox.values.toList();
+    final localGoals = storage.goalsBox.values.toList();
     final localWallets = storage.walletsBox.values.toList();
-    final usedLocalBills =
-        remoteSnapshot.bills.isEmpty && localBills.isNotEmpty;
-    final usedLocalWallets =
-        remoteSnapshot.wallets.isEmpty && localWallets.isNotEmpty;
+
+    final mergedCategories = _mergeCollectionsById(
+      remote: remoteSnapshot.categories,
+      local: localCategories,
+      idOf: (item) => item.id,
+    );
+    final mergedEntries = _mergeCollectionsById(
+      remote: remoteSnapshot.entries,
+      local: localEntries,
+      idOf: (item) => item.id,
+    );
+    final mergedBudgets = _mergeCollectionsById(
+      remote: remoteSnapshot.budgets,
+      local: localBudgets,
+      idOf: (item) => item.id,
+    );
+    final mergedBills = _mergeCollectionsById(
+      remote: remoteSnapshot.bills,
+      local: localBills,
+      idOf: (item) => item.id,
+    );
+    final mergedDebts = _mergeCollectionsById(
+      remote: remoteSnapshot.debts,
+      local: localDebts,
+      idOf: (item) => item.id,
+    );
+    final mergedGoals = _mergeCollectionsById(
+      remote: remoteSnapshot.goals,
+      local: localGoals,
+      idOf: (item) => item.id,
+    );
+    final mergedWallets = _mergeCollectionsById(
+      remote: remoteSnapshot.wallets,
+      local: localWallets,
+      idOf: (item) => item.id,
+    );
+
+    final requiresBackfill =
+        mergedCategories.length != remoteSnapshot.categories.length ||
+        mergedEntries.length != remoteSnapshot.entries.length ||
+        mergedBudgets.length != remoteSnapshot.budgets.length ||
+        mergedBills.length != remoteSnapshot.bills.length ||
+        mergedDebts.length != remoteSnapshot.debts.length ||
+        mergedGoals.length != remoteSnapshot.goals.length ||
+        mergedWallets.length != remoteSnapshot.wallets.length;
 
     return _RemoteMergeResult(
       snapshot: _RemoteSnapshot(
-        categories: remoteSnapshot.categories,
-        entries: remoteSnapshot.entries,
-        budgets: remoteSnapshot.budgets,
-        bills: usedLocalBills ? localBills : remoteSnapshot.bills,
-        debts: remoteSnapshot.debts,
-        goals: remoteSnapshot.goals,
-        wallets: usedLocalWallets ? localWallets : remoteSnapshot.wallets,
+        categories: mergedCategories,
+        entries: mergedEntries,
+        budgets: mergedBudgets,
+        bills: mergedBills,
+        debts: mergedDebts,
+        goals: mergedGoals,
+        wallets: mergedWallets,
         settings: remoteSnapshot.settings,
       ),
-      requiresBackfill: usedLocalBills || usedLocalWallets,
+      requiresBackfill: requiresBackfill,
     );
+  }
+
+  List<T> _mergeCollectionsById<T>({
+    required List<T> remote,
+    required List<T> local,
+    required String Function(T item) idOf,
+  }) {
+    if (remote.isEmpty) {
+      return local;
+    }
+    if (local.isEmpty) {
+      return remote;
+    }
+
+    final merged = <String, T>{for (final item in remote) idOf(item): item};
+
+    for (final item in local) {
+      merged.putIfAbsent(idOf(item), () => item);
+    }
+
+    return merged.values.toList();
   }
 
   AppSettingsSnapshot _settingsFromStorage(HiveStorageService storage) {
