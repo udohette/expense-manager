@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../core/config/app_environment.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/services/app_controller.dart';
 import '../../widgets/branded_logo.dart';
@@ -161,12 +162,8 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _continueWithGoogle() async {
-    String? redirectTo;
-    if (kIsWeb) {
-      redirectTo = Uri.base.origin;
-    }
     await widget.controller.authController.signInWithGoogle(
-      redirectTo: redirectTo,
+      redirectTo: AppEnvironment.authRedirectTo,
     );
   }
 
@@ -236,6 +233,31 @@ class _LoginScreenState extends State<LoginScreen>
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                Center(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                      vertical: 16,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.92,
+                                      ),
+                                      borderRadius: BorderRadius.circular(24),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: AppColors.primary.withValues(
+                                            alpha: 0.08,
+                                          ),
+                                          blurRadius: 24,
+                                          offset: const Offset(0, 12),
+                                        ),
+                                      ],
+                                    ),
+                                    child: const BrandedLogo(height: 42),
+                                  ),
+                                ),
+                                const SizedBox(height: 18),
                                 Container(
                                   padding: const EdgeInsets.all(18),
                                   decoration: BoxDecoration(
@@ -253,33 +275,6 @@ class _LoginScreenState extends State<LoginScreen>
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Container(
-                                        width: 124,
-                                        height: 72,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 10,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(
-                                            20,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withValues(
-                                                alpha: 0.08,
-                                              ),
-                                              blurRadius: 18,
-                                              offset: const Offset(0, 8),
-                                            ),
-                                          ],
-                                        ),
-                                        child: const Center(
-                                          child: BrandedLogo(height: 28),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 14),
                                       Expanded(
                                         child: Column(
                                           crossAxisAlignment:

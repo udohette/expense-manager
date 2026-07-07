@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class AppEnvironment {
   static const String supabaseUrl = String.fromEnvironment(
     'SUPABASE_URL',
@@ -10,4 +12,11 @@ class AppEnvironment {
 
   static bool get hasSupabase =>
       supabaseUrl.isNotEmpty && supabasePublishableKey.isNotEmpty;
+
+  static String? get authRedirectTo {
+    if (kIsWeb) {
+      return Uri.base.origin;
+    }
+    return 'com.eintelix.expensetracker://login-callback';
+  }
 }

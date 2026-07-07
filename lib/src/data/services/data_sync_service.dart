@@ -291,7 +291,9 @@ class DataSyncService {
       'user_id': userId,
       'name': item.name,
       'icon_code_point': item.iconCodePoint,
-      'color_value': item.colorValue,
+      // Postgres integer is signed 32-bit, while Flutter color ints are
+      // commonly treated as unsigned ARGB values. Normalize before sync.
+      'color_value': _toSigned32Bit(item.colorValue),
       'type': item.type.name,
       'is_default': item.isDefault,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
@@ -355,8 +357,8 @@ class DataSyncService {
     return ExpenseCategory(
       id: row['id'] as String,
       name: row['name'] as String,
-      iconCodePoint: row['icon_code_point'] as int,
-      colorValue: row['color_value'] as int,
+      iconCodePoint: (row['icon_code_point'] as num).toInt(),
+      colorValue: _toUnsigned32Bit((row['color_value'] as num).toInt()),
       type: _entryTypeFromString(row['type'] as String?),
       isDefault: row['is_default'] as bool? ?? false,
     );
@@ -452,6 +454,15 @@ class DataSyncService {
     return value == DebtPersonSource.contacts.name
         ? DebtPersonSource.contacts
         : DebtPersonSource.manual;
+  }
+
+  int _toSigned32Bit(int value) {
+    final normalized = value & 0xFFFFFFFF;
+    return normalized > 0x7FFFFFFF ? normalized - 0x100000000 : normalized;
+  }
+
+  int _toUnsigned32Bit(int value) {
+    return value & 0xFFFFFFFF;
   }
 }
 
