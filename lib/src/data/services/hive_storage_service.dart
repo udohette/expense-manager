@@ -1,5 +1,6 @@
 import 'package:hive_flutter/hive_flutter.dart';
 
+import '../models/app_settings_snapshot.dart';
 import '../models/budget_plan.dart';
 import '../models/debt_record.dart';
 import '../models/expense_category.dart';
@@ -40,4 +41,26 @@ class HiveStorageService {
   Box<DebtRecord> get debtsBox => Hive.box<DebtRecord>(debtsBoxName);
 
   Box<dynamic> get settingsBox => Hive.box<dynamic>(settingsBoxName);
+
+  Future<void> replaceAllData({
+    required Iterable<ExpenseCategory> categories,
+    required Iterable<ExpenseEntry> entries,
+    required Iterable<BudgetPlan> budgets,
+    required Iterable<DebtRecord> debts,
+  }) async {
+    await categoriesBox.clear();
+    await categoriesBox.addAll(categories);
+    await entriesBox.clear();
+    await entriesBox.addAll(entries);
+    await budgetsBox.clear();
+    await budgetsBox.addAll(budgets);
+    await debtsBox.clear();
+    await debtsBox.addAll(debts);
+  }
+
+  Future<void> applySettingsSnapshot(AppSettingsSnapshot settings) async {
+    await settingsBox.put('onboarding_complete', settings.onboardingComplete);
+    await settingsBox.put('currency_code', settings.currencyCode);
+    await settingsBox.put('hide_balances', settings.hideBalances);
+  }
 }
