@@ -7,6 +7,7 @@ import '../../data/services/app_controller.dart';
 import '../../data/services/sms_import_service.dart';
 import '../budgets/budgets_screen.dart';
 import '../debts/debts_screen.dart';
+import '../goals/goals_screen.dart';
 import '../settings/settings_screen.dart';
 import '../transactions/transactions_screen.dart';
 import 'overview_screen.dart';
@@ -32,6 +33,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _startSmsAutoSync();
+    unawaited(_ensureSmsPermissionPrompt());
     if (widget.controller.isSignedIn) {
       unawaited(widget.controller.refreshFromCloud());
     }
@@ -70,6 +72,37 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     _smsAutoSyncTimer = Timer.periodic(
       const Duration(seconds: 20),
       (_) => unawaited(_autoImportSmsTransactions()),
+    );
+  }
+
+  Future<void> _ensureSmsPermissionPrompt() async {
+    final hasPermission = await _smsImportService.hasSmsPermission();
+    if (hasPermission || !mounted) {
+      return;
+    }
+
+    final granted = await _smsImportService.requestSmsPermission();
+    if (!mounted) {
+      return;
+    }
+
+    if (granted) {
+      _startSmsAutoSync(runImmediately: true);
+      unawaited(_startIncomingSmsListener());
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('SMS access enabled. Importing bank alerts now.'),
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'SMS access was not granted. You can still allow it later from Import from SMS.',
+        ),
+      ),
     );
   }
 
@@ -147,12 +180,14 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final overviewPage = OverviewScreen(controller: widget.controller);
     final transactionsPage = TransactionsScreen(controller: widget.controller);
     final budgetsPage = BudgetsScreen(controller: widget.controller);
+    final goalsPage = GoalsScreen(controller: widget.controller);
     final debtsPage = DebtsScreen(controller: widget.controller);
     final settingsPage = SettingsScreen(controller: widget.controller);
     final pages = [
       overviewPage,
       transactionsPage,
       budgetsPage,
+      goalsPage,
       debtsPage,
       settingsPage,
     ];
@@ -179,6 +214,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             label: 'Budgets',
           ),
           NavigationDestination(
+            icon: Icon(Icons.savings_outlined),
+            selectedIcon: Icon(Icons.savings_rounded),
+            label: 'Goals',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.handshake_outlined),
             selectedIcon: Icon(Icons.handshake_rounded),
             label: 'Debts',
@@ -191,7 +231,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: _index == 4
+      floatingActionButton: _index == 5
           ? null
           : Padding(
               padding: const EdgeInsets.only(bottom: 72),
@@ -208,6 +248,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                       budgetsPage.onQuickAction(context);
                       break;
                     case 3:
+                      goalsPage.onQuickAction(context);
+                      break;
+                    case 4:
                       debtsPage.onQuickAction(context);
                       break;
                     default:

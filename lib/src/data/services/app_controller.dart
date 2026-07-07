@@ -6,10 +6,13 @@ import 'package:hive/hive.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../models/app_settings_snapshot.dart';
+import '../models/bill_record.dart';
 import '../models/budget_plan.dart';
 import '../models/debt_record.dart';
 import '../models/expense_category.dart';
 import '../models/expense_entry.dart';
+import '../models/savings_goal.dart';
+import '../models/wallet_account.dart';
 import 'auth_controller.dart';
 import 'data_sync_service.dart';
 import 'hive_storage_service.dart';
@@ -41,13 +44,17 @@ class AppController extends ChangeNotifier {
   late List<ExpenseCategory> _categories;
   late List<ExpenseEntry> _entries;
   late List<BudgetPlan> _budgets;
+  late List<BillRecord> _bills;
   late List<DebtRecord> _debts;
+  late List<SavingsGoal> _goals;
+  late List<WalletAccount> _wallets;
   bool _onboardingComplete = false;
   bool _hideBalances = false;
   String _currencyCode = 'NGN';
   bool _syncInProgress = false;
   bool _hasActiveRealtimeSync = false;
   bool _pendingRealtimeRefresh = false;
+  bool _isMaterializingRecurringEntries = false;
   DateTime? _lastSyncAt;
   String? _syncErrorMessage;
   Timer? _realtimeRefreshDebounce;
@@ -55,9 +62,16 @@ class AppController extends ChangeNotifier {
 
   List<ExpenseCategory> get categories => List.unmodifiable(_categories);
   List<ExpenseEntry> get entries =>
-      List.unmodifiable(_coalescedSmsEntries(_entries));
+      List.unmodifiable(_visibleEntries(_entries));
+  List<ExpenseEntry> get recurringTemplates => List.unmodifiable(
+    _entries.where((entry) => entry.isRecurringTemplate).toList()
+      ..sort((a, b) => a.title.compareTo(b.title)),
+  );
   List<BudgetPlan> get budgets => List.unmodifiable(_budgets);
+  List<BillRecord> get bills => List.unmodifiable(_bills);
   List<DebtRecord> get debts => List.unmodifiable(_debts);
+  List<SavingsGoal> get goals => List.unmodifiable(_goals);
+  List<WalletAccount> get wallets => List.unmodifiable(_wallets);
   bool get onboardingComplete => _onboardingComplete;
   bool get hideBalances => _hideBalances;
   String get currencyCode => _currencyCode;
@@ -84,6 +98,7 @@ class AppController extends ChangeNotifier {
     await _seedDefaults(includeDemoData: !_syncService.isConfigured);
     await _runSmsImportCleanupIfNeeded();
     _loadAll();
+    await _materializeRecurringEntries();
 
     if (_syncService.isSignedIn) {
       await syncFromCloudOnLaunch();
@@ -96,12 +111,22 @@ class AppController extends ChangeNotifier {
       _storage.categoriesBox.watch().listen((event) => _loadAll()),
     );
     _subscriptions.add(
-      _storage.entriesBox.watch().listen((event) => _loadAll()),
+      _storage.entriesBox.watch().listen((event) {
+        _loadAll();
+        if (!_isMaterializingRecurringEntries) {
+          unawaited(_materializeRecurringEntries());
+        }
+      }),
     );
     _subscriptions.add(
       _storage.budgetsBox.watch().listen((event) => _loadAll()),
     );
+    _subscriptions.add(_storage.billsBox.watch().listen((event) => _loadAll()));
     _subscriptions.add(_storage.debtsBox.watch().listen((event) => _loadAll()));
+    _subscriptions.add(_storage.goalsBox.watch().listen((event) => _loadAll()));
+    _subscriptions.add(
+      _storage.walletsBox.watch().listen((event) => _loadAll()),
+    );
   }
 
   void _loadAll() {
@@ -111,9 +136,28 @@ class AppController extends ChangeNotifier {
       ..sort((a, b) => b.date.compareTo(a.date));
     _budgets = _storage.budgetsBox.values.toList()
       ..sort((a, b) => b.startDate.compareTo(a.startDate));
+    _bills = _storage.billsBox.values.toList()
+      ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
     _debts = _storage.debtsBox.values.toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    _goals = _storage.goalsBox.values.toList()
+      ..sort((a, b) {
+        final left = a.targetDate ?? DateTime(9999);
+        final right = b.targetDate ?? DateTime(9999);
+        final byDate = left.compareTo(right);
+        if (byDate != 0) {
+          return byDate;
+        }
+        return a.createdAt.compareTo(b.createdAt);
+      });
+    _wallets = _storage.walletsBox.values.toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
     notifyListeners();
+  }
+
+  List<ExpenseEntry> _visibleEntries(List<ExpenseEntry> entries) {
+    final nonTemplates = entries.where((entry) => !entry.isRecurringTemplate);
+    return _coalescedSmsEntries(nonTemplates.toList());
   }
 
   Future<void> _runSmsImportCleanupIfNeeded() async {
@@ -211,6 +255,141 @@ class AppController extends ChangeNotifier {
 
     final seenKeys = <dynamic>{};
     return duplicates.where((entry) => seenKeys.add(entry.key)).toList();
+  }
+
+  Future<void> _materializeRecurringEntries() async {
+    if (_isMaterializingRecurringEntries) {
+      return;
+    }
+
+    final templates = _storage.entriesBox.values
+        .where((entry) => entry.isRecurringTemplate && entry.hasRecurrence)
+        .toList();
+    if (templates.isEmpty) {
+      return;
+    }
+
+    _isMaterializingRecurringEntries = true;
+    try {
+      final existingEntries = _storage.entriesBox.values.toList();
+      final existingIds = existingEntries.map((entry) => entry.id).toSet();
+      final newEntries = <ExpenseEntry>[];
+      final now = _dateOnly(DateTime.now());
+
+      for (final template in templates) {
+        var occurrenceDate = _dateOnly(template.date);
+        while (!occurrenceDate.isAfter(now) &&
+            _isBeforeOrSame(occurrenceDate, template.recurrenceEndDate)) {
+          final occurrenceId = _recurringOccurrenceId(
+            template.id,
+            occurrenceDate,
+          );
+          if (!existingIds.contains(occurrenceId)) {
+            newEntries.add(
+              ExpenseEntry(
+                id: occurrenceId,
+                title: template.title,
+                amount: template.amount,
+                date: occurrenceDate,
+                categoryId: template.categoryId,
+                type: template.type,
+                paymentMethod: template.paymentMethod,
+                note: template.note,
+                tag: template.tag,
+                source: template.source,
+                externalId: template.externalId,
+                merchantOrSender: template.merchantOrSender,
+                accountHint: template.accountHint,
+                institutionName: template.institutionName,
+                rawMessage: template.rawMessage,
+                importedAt: template.importedAt,
+                walletAccountId: template.walletAccountId,
+                recurrenceFrequency: RecurrenceFrequency.none,
+                recurrenceInterval: 1,
+                recurrenceEndDate: null,
+                isRecurringTemplate: false,
+                recurrenceTemplateId: template.id,
+              ),
+            );
+            existingIds.add(occurrenceId);
+          }
+          final next = _advanceRecurringDate(template, occurrenceDate);
+          if (next == occurrenceDate) {
+            break;
+          }
+          occurrenceDate = next;
+        }
+      }
+
+      if (newEntries.isNotEmpty) {
+        await _storage.entriesBox.addAll(newEntries);
+        _loadAll();
+      }
+    } finally {
+      _isMaterializingRecurringEntries = false;
+    }
+  }
+
+  Future<void> _deleteGeneratedEntriesForTemplate(String templateId) async {
+    final keysToDelete = _storage.entriesBox.keys.where((key) {
+      final item = _storage.entriesBox.get(key);
+      return item != null && item.recurrenceTemplateId == templateId;
+    }).toList();
+    if (keysToDelete.isEmpty) {
+      return;
+    }
+    await _storage.entriesBox.deleteAll(keysToDelete);
+    _loadAll();
+  }
+
+  Future<void> _deleteTransferEntries(String transferExternalId) async {
+    final keysToDelete = _storage.entriesBox.keys.where((key) {
+      final item = _storage.entriesBox.get(key);
+      return item != null && item.externalId == transferExternalId;
+    }).toList();
+    if (keysToDelete.isEmpty) {
+      return;
+    }
+    await _storage.entriesBox.deleteAll(keysToDelete);
+    _loadAll();
+  }
+
+  String _recurringOccurrenceId(String templateId, DateTime date) {
+    final normalized = _dateOnly(date);
+    final month = normalized.month.toString().padLeft(2, '0');
+    final day = normalized.day.toString().padLeft(2, '0');
+    return '$templateId::${normalized.year}$month$day';
+  }
+
+  DateTime _advanceRecurringDate(ExpenseEntry template, DateTime currentDate) {
+    switch (template.recurrenceFrequency) {
+      case RecurrenceFrequency.weekly:
+        return currentDate.add(Duration(days: 7 * template.recurrenceInterval));
+      case RecurrenceFrequency.monthly:
+        return DateTime(
+          currentDate.year,
+          currentDate.month + template.recurrenceInterval,
+          template.date.day,
+        );
+      case RecurrenceFrequency.yearly:
+        return DateTime(
+          currentDate.year + template.recurrenceInterval,
+          currentDate.month,
+          template.date.day,
+        );
+      case RecurrenceFrequency.none:
+        return currentDate;
+    }
+  }
+
+  DateTime _dateOnly(DateTime date) =>
+      DateTime(date.year, date.month, date.day);
+
+  bool _isBeforeOrSame(DateTime value, DateTime? limit) {
+    if (limit == null) {
+      return true;
+    }
+    return !value.isAfter(_dateOnly(limit));
   }
 
   int _smsEntryRichnessScore(ExpenseEntry entry) {
@@ -391,6 +570,22 @@ class AppController extends ChangeNotifier {
           type: EntryType.income,
           isDefault: true,
         ),
+        ExpenseCategory(
+          id: 'wallet_transfer_out',
+          name: 'Wallet Transfer Out',
+          iconCodePoint: Icons.swap_horiz_rounded.codePoint,
+          colorValue: AppColors.warning.toARGB32(),
+          type: EntryType.expense,
+          isDefault: true,
+        ),
+        ExpenseCategory(
+          id: 'wallet_transfer_in',
+          name: 'Wallet Transfer In',
+          iconCodePoint: Icons.swap_horiz_rounded.codePoint,
+          colorValue: AppColors.primary.toARGB32(),
+          type: EntryType.income,
+          isDefault: true,
+        ),
       ];
 
       await _storage.categoriesBox.addAll(seedCategories);
@@ -417,6 +612,24 @@ class AppController extends ChangeNotifier {
             type: EntryType.income,
             isDefault: true,
           ),
+        if (!existingIds.contains('wallet_transfer_out'))
+          ExpenseCategory(
+            id: 'wallet_transfer_out',
+            name: 'Wallet Transfer Out',
+            iconCodePoint: Icons.swap_horiz_rounded.codePoint,
+            colorValue: AppColors.warning.toARGB32(),
+            type: EntryType.expense,
+            isDefault: true,
+          ),
+        if (!existingIds.contains('wallet_transfer_in'))
+          ExpenseCategory(
+            id: 'wallet_transfer_in',
+            name: 'Wallet Transfer In',
+            iconCodePoint: Icons.swap_horiz_rounded.codePoint,
+            colorValue: AppColors.primary.toARGB32(),
+            type: EntryType.income,
+            isDefault: true,
+          ),
       ];
       if (missingCategories.isNotEmpty) {
         await _storage.categoriesBox.addAll(missingCategories);
@@ -434,6 +647,7 @@ class AppController extends ChangeNotifier {
           categoryId: 'utilities',
           type: EntryType.expense,
           paymentMethod: 'Transfer',
+          walletAccountId: 'wallet_business',
           note: 'Monthly business broadband',
         ),
         ExpenseEntry(
@@ -444,6 +658,7 @@ class AppController extends ChangeNotifier {
           categoryId: 'freelance',
           type: EntryType.income,
           paymentMethod: 'Bank',
+          walletAccountId: 'wallet_business',
           note: 'Project milestone settlement',
         ),
         ExpenseEntry(
@@ -454,6 +669,7 @@ class AppController extends ChangeNotifier {
           categoryId: 'food',
           type: EntryType.expense,
           paymentMethod: 'Card',
+          walletAccountId: 'wallet_bank',
         ),
       ];
       await _storage.entriesBox.addAll(sampleEntries);
@@ -476,6 +692,31 @@ class AppController extends ChangeNotifier {
           categoryId: 'food',
           startDate: DateTime(DateTime.now().year, DateTime.now().month, 1),
           period: BudgetPeriod.monthly,
+        ),
+      ]);
+    }
+
+    if (includeDemoData && _storage.billsBox.isEmpty) {
+      final now = DateTime.now();
+      await _storage.billsBox.addAll([
+        BillRecord(
+          id: _randomId(),
+          name: 'Office internet bill',
+          amount: 45500,
+          dueDate: DateTime(now.year, now.month, now.day + 3),
+          frequency: RecurrenceFrequency.monthly,
+          reminderDaysBefore: 2,
+          walletAccountId: 'wallet_business',
+          note: 'Business broadband renewal.',
+        ),
+        BillRecord(
+          id: _randomId(),
+          name: 'Electricity token',
+          amount: 28000,
+          dueDate: DateTime(now.year, now.month, now.day + 5),
+          frequency: RecurrenceFrequency.monthly,
+          reminderDaysBefore: 3,
+          walletAccountId: 'wallet_bank',
         ),
       ]);
     }
@@ -507,6 +748,70 @@ class AppController extends ChangeNotifier {
         ),
       ]);
     }
+
+    if (includeDemoData && _storage.goalsBox.isEmpty) {
+      final now = DateTime.now();
+      await _storage.goalsBox.addAll([
+        SavingsGoal(
+          id: _randomId(),
+          name: 'Office expansion fund',
+          targetAmount: 500000,
+          currentAmount: 180000,
+          createdAt: now.subtract(const Duration(days: 20)),
+          note: 'Build a reserve for new equipment and workspace upgrades.',
+          targetDate: now.add(const Duration(days: 120)),
+        ),
+        SavingsGoal(
+          id: _randomId(),
+          name: 'Emergency buffer',
+          targetAmount: 250000,
+          currentAmount: 90000,
+          createdAt: now.subtract(const Duration(days: 10)),
+          targetDate: now.add(const Duration(days: 90)),
+        ),
+      ]);
+    }
+
+    if (_storage.walletsBox.isEmpty) {
+      await _storage.walletsBox.addAll([
+        WalletAccount(
+          id: 'wallet_cash',
+          name: 'Cash Wallet',
+          kind: WalletKind.cash,
+          colorValue: AppColors.warning.toARGB32(),
+          iconCodePoint: Icons.payments_rounded.codePoint,
+          isDefault: true,
+          note: 'Cash on hand for quick daily spending.',
+        ),
+        WalletAccount(
+          id: 'wallet_bank',
+          name: 'Main Bank Account',
+          kind: WalletKind.bank,
+          colorValue: AppColors.primary.toARGB32(),
+          iconCodePoint: Icons.account_balance_rounded.codePoint,
+          isDefault: true,
+          note: 'Primary bank account for transfers and card payments.',
+        ),
+        WalletAccount(
+          id: 'wallet_savings',
+          name: 'Savings Wallet',
+          kind: WalletKind.savings,
+          colorValue: AppColors.success.toARGB32(),
+          iconCodePoint: Icons.savings_rounded.codePoint,
+          isDefault: true,
+          note: 'Reserved funds and emergency buffer.',
+        ),
+        WalletAccount(
+          id: 'wallet_business',
+          name: 'Business Account',
+          kind: WalletKind.business,
+          colorValue: AppColors.primaryDark.toARGB32(),
+          iconCodePoint: Icons.business_center_rounded.codePoint,
+          isDefault: true,
+          note: 'Business income and expense flow.',
+        ),
+      ]);
+    }
   }
 
   ExpenseCategory? findCategory(String categoryId) {
@@ -523,6 +828,96 @@ class AppController extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  WalletAccount? findWallet(String walletId) {
+    try {
+      return _wallets.firstWhere((item) => item.id == walletId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  WalletAccount? suggestWalletForEntry(ExpenseEntry? entry) {
+    if (entry == null) {
+      return defaultWallet;
+    }
+    if (entry.walletAccountId.isNotEmpty) {
+      return findWallet(entry.walletAccountId) ?? defaultWallet;
+    }
+
+    final method = entry.paymentMethod.trim().toLowerCase();
+    final rawText =
+        '${entry.institutionName} ${entry.accountHint} ${entry.note}'
+            .toLowerCase();
+    final combined = '$method $rawText';
+    if (combined.contains('saving')) {
+      return walletForKind(WalletKind.savings) ?? defaultWallet;
+    }
+    if (combined.contains('business')) {
+      return walletForKind(WalletKind.business) ?? defaultWallet;
+    }
+    if (combined.contains('cash')) {
+      return walletForKind(WalletKind.cash) ?? defaultWallet;
+    }
+    if (combined.contains('bank') ||
+        combined.contains('transfer') ||
+        combined.contains('card') ||
+        entry.institutionName.trim().isNotEmpty) {
+      return walletForKind(WalletKind.bank) ?? defaultWallet;
+    }
+    return defaultWallet;
+  }
+
+  WalletAccount? walletForKind(WalletKind kind) {
+    try {
+      return _wallets.firstWhere((item) => item.kind == kind);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  WalletAccount? get defaultWallet {
+    try {
+      return _wallets.firstWhere((item) => item.isDefault);
+    } catch (_) {
+      return _wallets.isEmpty ? null : _wallets.first;
+    }
+  }
+
+  bool isTransferEntry(ExpenseEntry entry) {
+    return entry.externalId.startsWith('wallet_transfer:');
+  }
+
+  DateTime? nextDueDateForTemplate(ExpenseEntry template) {
+    if (!template.isRecurringTemplate || !template.hasRecurrence) {
+      return null;
+    }
+
+    final existingDates = _entries
+        .where((entry) => entry.recurrenceTemplateId == template.id)
+        .map((entry) => _dateOnly(entry.date))
+        .toSet();
+    final now = _dateOnly(DateTime.now());
+    var occurrenceDate = _dateOnly(template.date);
+
+    while (!occurrenceDate.isAfter(now)) {
+      if (_isBeforeOrSame(occurrenceDate, template.recurrenceEndDate) &&
+          !existingDates.contains(occurrenceDate)) {
+        return occurrenceDate;
+      }
+      final next = _advanceRecurringDate(template, occurrenceDate);
+      if (next == occurrenceDate) {
+        break;
+      }
+      occurrenceDate = next;
+    }
+
+    if (!_isBeforeOrSame(occurrenceDate, template.recurrenceEndDate)) {
+      return null;
+    }
+
+    return occurrenceDate;
   }
 
   Future<void> setOnboardingComplete() async {
@@ -643,11 +1038,13 @@ class AppController extends ChangeNotifier {
 
   Future<void> addEntry(ExpenseEntry entry) async {
     await _storage.entriesBox.add(entry);
+    await _materializeRecurringEntries();
     await _pushLocalChanges();
   }
 
   Future<void> addEntries(Iterable<ExpenseEntry> entries) async {
     await _storage.entriesBox.addAll(entries);
+    await _materializeRecurringEntries();
     await _pushLocalChanges();
   }
 
@@ -660,10 +1057,26 @@ class AppController extends ChangeNotifier {
       return;
     }
     await _storage.entriesBox.put(key, entry);
+    await _deleteGeneratedEntriesForTemplate(entry.id);
+    await _materializeRecurringEntries();
     await _pushLocalChanges();
   }
 
   Future<void> deleteEntry(String entryId) async {
+    ExpenseEntry? entry;
+    for (final item in _entries) {
+      if (item.id == entryId) {
+        entry = item;
+        break;
+      }
+    }
+    if (entry != null && isTransferEntry(entry)) {
+      await _deleteTransferEntries(entry.externalId);
+      await _pushLocalChanges();
+      return;
+    }
+
+    await _deleteGeneratedEntriesForTemplate(entryId);
     final key = _findBoxKey<ExpenseEntry>(
       _storage.entriesBox,
       (item) => item.id == entryId,
@@ -672,6 +1085,55 @@ class AppController extends ChangeNotifier {
       return;
     }
     await _storage.entriesBox.delete(key);
+    await _pushLocalChanges();
+  }
+
+  Future<void> transferBetweenWallets({
+    required String fromWalletId,
+    required String toWalletId,
+    required double amount,
+    DateTime? date,
+    String note = '',
+  }) async {
+    if (fromWalletId == toWalletId || amount <= 0) {
+      return;
+    }
+    final fromWallet = findWallet(fromWalletId);
+    final toWallet = findWallet(toWalletId);
+    if (fromWallet == null || toWallet == null) {
+      return;
+    }
+
+    final transferDate = date ?? DateTime.now();
+    final groupId = 'wallet_transfer:${_randomId()}';
+    final fromEntry = ExpenseEntry(
+      id: _randomId(),
+      title: 'Transfer to ${toWallet.name}',
+      amount: amount,
+      date: transferDate,
+      categoryId: 'wallet_transfer_out',
+      type: EntryType.expense,
+      paymentMethod: 'Wallet Transfer',
+      note: note,
+      externalId: groupId,
+      merchantOrSender: toWallet.name,
+      walletAccountId: fromWallet.id,
+    );
+    final toEntry = ExpenseEntry(
+      id: _randomId(),
+      title: 'Transfer from ${fromWallet.name}',
+      amount: amount,
+      date: transferDate,
+      categoryId: 'wallet_transfer_in',
+      type: EntryType.income,
+      paymentMethod: 'Wallet Transfer',
+      note: note,
+      externalId: groupId,
+      merchantOrSender: fromWallet.name,
+      walletAccountId: toWallet.id,
+    );
+
+    await _storage.entriesBox.addAll([fromEntry, toEntry]);
     await _pushLocalChanges();
   }
 
@@ -726,6 +1188,35 @@ class AppController extends ChangeNotifier {
     await _pushLocalChanges();
   }
 
+  Future<void> addBill(BillRecord bill) async {
+    await _storage.billsBox.add(bill);
+    await _pushLocalChanges();
+  }
+
+  Future<void> updateBill(BillRecord bill) async {
+    final key = _findBoxKey<BillRecord>(
+      _storage.billsBox,
+      (item) => item.id == bill.id,
+    );
+    if (key == null) {
+      return;
+    }
+    await _storage.billsBox.put(key, bill);
+    await _pushLocalChanges();
+  }
+
+  Future<void> deleteBill(String billId) async {
+    final key = _findBoxKey<BillRecord>(
+      _storage.billsBox,
+      (item) => item.id == billId,
+    );
+    if (key == null) {
+      return;
+    }
+    await _storage.billsBox.delete(key);
+    await _pushLocalChanges();
+  }
+
   Future<void> addDebt(DebtRecord debt) async {
     await _storage.debtsBox.add(debt);
     await _pushLocalChanges();
@@ -753,6 +1244,115 @@ class AppController extends ChangeNotifier {
     }
     await _storage.debtsBox.delete(key);
     await _pushLocalChanges();
+  }
+
+  Future<void> recordDebtPayment(String debtId, double amount) async {
+    if (amount <= 0) {
+      return;
+    }
+    DebtRecord? debt;
+    for (final item in _debts) {
+      if (item.id == debtId) {
+        debt = item;
+        break;
+      }
+    }
+    if (debt == null) {
+      return;
+    }
+    final nextPaid = (debt.amountPaid + amount)
+        .clamp(0, debt.amount)
+        .toDouble();
+    await updateDebt(
+      debt.copyWith(
+        amountPaid: nextPaid,
+        status: nextPaid >= debt.amount ? DebtStatus.settled : debt.status,
+      ),
+    );
+  }
+
+  Future<void> addGoal(SavingsGoal goal) async {
+    await _storage.goalsBox.add(goal);
+    await _pushLocalChanges();
+  }
+
+  Future<void> updateGoal(SavingsGoal goal) async {
+    final key = _findBoxKey<SavingsGoal>(
+      _storage.goalsBox,
+      (item) => item.id == goal.id,
+    );
+    if (key == null) {
+      return;
+    }
+    await _storage.goalsBox.put(key, goal);
+    await _pushLocalChanges();
+  }
+
+  Future<void> deleteGoal(String goalId) async {
+    final key = _findBoxKey<SavingsGoal>(
+      _storage.goalsBox,
+      (item) => item.id == goalId,
+    );
+    if (key == null) {
+      return;
+    }
+    await _storage.goalsBox.delete(key);
+    await _pushLocalChanges();
+  }
+
+  Future<void> contributeToGoal(String goalId, double amount) async {
+    if (amount <= 0) {
+      return;
+    }
+    SavingsGoal? goal;
+    for (final item in _goals) {
+      if (item.id == goalId) {
+        goal = item;
+        break;
+      }
+    }
+    if (goal == null) {
+      return;
+    }
+    await updateGoal(
+      goal.copyWith(
+        currentAmount: (goal.currentAmount + amount).clamp(0, double.infinity),
+      ),
+    );
+  }
+
+  Future<void> addWallet(WalletAccount wallet) async {
+    await _storage.walletsBox.add(wallet);
+    await _pushLocalChanges();
+  }
+
+  Future<void> updateWallet(WalletAccount wallet) async {
+    final key = _findBoxKey<WalletAccount>(
+      _storage.walletsBox,
+      (item) => item.id == wallet.id,
+    );
+    if (key == null) {
+      return;
+    }
+    await _storage.walletsBox.put(key, wallet);
+    await _pushLocalChanges();
+  }
+
+  Future<bool> deleteWallet(String walletId) async {
+    final wallet = findWallet(walletId);
+    if (wallet == null || wallet.isDefault || walletEntryCount(walletId) > 0) {
+      return false;
+    }
+    final key = _findBoxKey<WalletAccount>(
+      _storage.walletsBox,
+      (item) => item.id == walletId,
+    );
+    if (key == null) {
+      return false;
+    }
+    await _storage.walletsBox.delete(key);
+    await _pushLocalChanges();
+    return true;
   }
 
   Future<void> deleteAllUserData() async {
@@ -917,7 +1517,10 @@ class AppController extends ChangeNotifier {
       categories: <ExpenseCategory>[],
       entries: <ExpenseEntry>[],
       budgets: <BudgetPlan>[],
+      bills: <BillRecord>[],
       debts: <DebtRecord>[],
+      goals: <SavingsGoal>[],
+      wallets: <WalletAccount>[],
     );
     _onboardingComplete = false;
     _hideBalances = false;
@@ -934,7 +1537,10 @@ class AppController extends ChangeNotifier {
       categories: <ExpenseCategory>[],
       entries: <ExpenseEntry>[],
       budgets: <BudgetPlan>[],
+      bills: <BillRecord>[],
       debts: <DebtRecord>[],
+      goals: <SavingsGoal>[],
+      wallets: <WalletAccount>[],
     );
     await _storage.clearSettings();
     _onboardingComplete = false;
@@ -953,7 +1559,10 @@ class AppController extends ChangeNotifier {
       categories: <ExpenseCategory>[],
       entries: <ExpenseEntry>[],
       budgets: <BudgetPlan>[],
+      bills: <BillRecord>[],
       debts: <DebtRecord>[],
+      goals: <SavingsGoal>[],
+      wallets: <WalletAccount>[],
     );
     await _storage.clearSettings(preserveSmsCleanupVersion: false);
     _onboardingComplete = false;
@@ -963,15 +1572,43 @@ class AppController extends ChangeNotifier {
     _loadAll();
   }
 
-  double get totalIncome => _entries
-      .where((item) => item.type == EntryType.income)
+  double get totalIncome => entries
+      .where((item) => item.type == EntryType.income && !isTransferEntry(item))
       .fold(0, (sum, item) => sum + item.amount);
 
-  double get totalExpense => _entries
-      .where((item) => item.type == EntryType.expense)
+  double get totalExpense => entries
+      .where((item) => item.type == EntryType.expense && !isTransferEntry(item))
       .fold(0, (sum, item) => sum + item.amount);
 
   double get netBalance => totalIncome - totalExpense;
+
+  TrendComparisonSnapshot get weeklyExpenseTrend {
+    final now = DateTime.now();
+    final currentStart = _dateOnly(
+      now.subtract(Duration(days: now.weekday - 1)),
+    );
+    final currentEnd = _dateOnly(now);
+    final previousStart = currentStart.subtract(const Duration(days: 7));
+    final previousEnd = currentStart.subtract(const Duration(days: 1));
+    return TrendComparisonSnapshot(
+      label: 'Weekly spending',
+      currentTotal: expenseForRange(currentStart, currentEnd),
+      previousTotal: expenseForRange(previousStart, previousEnd),
+    );
+  }
+
+  TrendComparisonSnapshot get monthlyExpenseTrend {
+    final now = DateTime.now();
+    final currentStart = DateTime(now.year, now.month, 1);
+    final currentEnd = _dateOnly(now);
+    final previousStart = DateTime(now.year, now.month - 1, 1);
+    final previousEnd = DateTime(now.year, now.month, 0);
+    return TrendComparisonSnapshot(
+      label: 'Monthly spending',
+      currentTotal: expenseForRange(currentStart, currentEnd),
+      previousTotal: expenseForRange(previousStart, previousEnd),
+    );
+  }
 
   double get receivablesTotal => _debts
       .where(
@@ -987,13 +1624,171 @@ class AppController extends ChangeNotifier {
       )
       .fold(0, (sum, item) => sum + item.amount);
 
+  double get goalsSavedTotal =>
+      _goals.fold(0, (sum, item) => sum + item.currentAmount);
+
+  double get goalsTargetTotal =>
+      _goals.fold(0, (sum, item) => sum + item.targetAmount);
+
+  List<SavingsGoal> get highlightedGoals => _goals.take(2).toList();
+
+  List<BillRecord> get upcomingBills {
+    final now = DateTime.now();
+    return _bills
+        .where((bill) => !bill.isPaid && !bill.dueDate.isBefore(_dateOnly(now)))
+        .take(4)
+        .toList();
+  }
+
+  List<DebtRecord> get upcomingDebtInstallments {
+    return _debts
+        .where(
+          (debt) =>
+              debt.status == DebtStatus.active &&
+              debt.nextInstallmentDate != null,
+        )
+        .toList()
+      ..sort(
+        (a, b) => a.nextInstallmentDate!.compareTo(b.nextInstallmentDate!),
+      );
+  }
+
+  List<WalletBalanceSnapshot> get walletSnapshots {
+    return _wallets.map((wallet) {
+      final walletEntries = entries
+          .where((entry) => resolveWalletIdForEntry(entry) == wallet.id)
+          .toList();
+      final income = walletEntries
+          .where((entry) => entry.type == EntryType.income)
+          .fold<double>(0, (sum, entry) => sum + entry.amount);
+      final expense = walletEntries
+          .where((entry) => entry.type == EntryType.expense)
+          .fold<double>(0, (sum, entry) => sum + entry.amount);
+      return WalletBalanceSnapshot(
+        wallet: wallet,
+        income: income,
+        expense: expense,
+        transactionCount: walletEntries.length,
+      );
+    }).toList()..sort((a, b) => b.balance.compareTo(a.balance));
+  }
+
+  List<WalletBalanceSnapshot> get highlightedWallets =>
+      walletSnapshots.take(3).toList();
+
+  double incomeForRange(DateTime start, DateTime end) {
+    return entries
+        .where(
+          (entry) =>
+              entry.type == EntryType.income &&
+              !isTransferEntry(entry) &&
+              _isWithinInclusiveRange(entry.date, start, end),
+        )
+        .fold(0, (sum, entry) => sum + entry.amount);
+  }
+
+  double expenseForRange(DateTime start, DateTime end) {
+    return entries
+        .where(
+          (entry) =>
+              entry.type == EntryType.expense &&
+              !isTransferEntry(entry) &&
+              _isWithinInclusiveRange(entry.date, start, end),
+        )
+        .fold(0, (sum, entry) => sum + entry.amount);
+  }
+
+  ExpenseCategorySpendSnapshot? topCategoryForRange(
+    DateTime start,
+    DateTime end,
+  ) {
+    final totals = <String, double>{};
+    for (final entry in entries.where(
+      (item) =>
+          item.type == EntryType.expense &&
+          !isTransferEntry(item) &&
+          _isWithinInclusiveRange(item.date, start, end),
+    )) {
+      totals.update(
+        entry.categoryId,
+        (value) => value + entry.amount,
+        ifAbsent: () => entry.amount,
+      );
+    }
+    if (totals.isEmpty) {
+      return null;
+    }
+    final sorted = totals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final winner = sorted.first;
+    return ExpenseCategorySpendSnapshot(
+      categoryId: winner.key,
+      amount: winner.value,
+    );
+  }
+
+  List<TrendSeriesPoint> weeklyTrendSeries({int weeks = 8}) {
+    final now = DateTime.now();
+    final currentWeekStart = _dateOnly(
+      now.subtract(Duration(days: now.weekday - 1)),
+    );
+    return List.generate(weeks, (index) {
+      final start = currentWeekStart.subtract(
+        Duration(days: 7 * (weeks - index - 1)),
+      );
+      final end = start.add(const Duration(days: 6));
+      return TrendSeriesPoint(
+        label: 'W${index + 1}',
+        start: start,
+        end: end,
+        income: incomeForRange(start, end),
+        expense: expenseForRange(start, end),
+      );
+    });
+  }
+
+  List<TrendSeriesPoint> monthlyTrendSeries({int months = 6}) {
+    final now = DateTime.now();
+    return List.generate(months, (index) {
+      final pointMonth = DateTime(
+        now.year,
+        now.month - (months - index - 1),
+        1,
+      );
+      final start = DateTime(pointMonth.year, pointMonth.month, 1);
+      final end = DateTime(pointMonth.year, pointMonth.month + 1, 0);
+      return TrendSeriesPoint(
+        label: '${start.month}/${start.year % 100}',
+        start: start,
+        end: end,
+        income: incomeForRange(start, end),
+        expense: expenseForRange(start, end),
+      );
+    });
+  }
+
+  int walletEntryCount(String walletId) {
+    return entries
+        .where((entry) => resolveWalletIdForEntry(entry) == walletId)
+        .length;
+  }
+
+  String resolveWalletIdForEntry(ExpenseEntry entry) {
+    final directId = entry.walletAccountId.trim();
+    if (directId.isNotEmpty && findWallet(directId) != null) {
+      return directId;
+    }
+    return suggestWalletForEntry(entry)?.id ?? '';
+  }
+
   Map<String, double> get currentMonthByCategory {
     final now = DateTime.now();
     final result = <String, double>{};
 
-    for (final entry in _entries.where(
+    for (final entry in entries.where(
       (item) =>
           item.type == EntryType.expense &&
+          !isTransferEntry(item) &&
           item.date.year == now.year &&
           item.date.month == now.month,
     )) {
@@ -1009,9 +1804,10 @@ class AppController extends ChangeNotifier {
   Map<String, double> getMonthByCategory(DateTime month) {
     final result = <String, double>{};
 
-    for (final entry in _entries.where(
+    for (final entry in entries.where(
       (item) =>
           item.type == EntryType.expense &&
+          !isTransferEntry(item) &&
           item.date.year == month.year &&
           item.date.month == month.month,
     )) {
@@ -1025,10 +1821,11 @@ class AppController extends ChangeNotifier {
   }
 
   double getMonthIncome(DateTime month) {
-    return _entries
+    return entries
         .where(
           (item) =>
               item.type == EntryType.income &&
+              !isTransferEntry(item) &&
               item.date.year == month.year &&
               item.date.month == month.month,
         )
@@ -1036,10 +1833,11 @@ class AppController extends ChangeNotifier {
   }
 
   double getMonthExpense(DateTime month) {
-    return _entries
+    return entries
         .where(
           (item) =>
               item.type == EntryType.expense &&
+              !isTransferEntry(item) &&
               item.date.year == month.year &&
               item.date.month == month.month,
         )
@@ -1047,10 +1845,11 @@ class AppController extends ChangeNotifier {
   }
 
   double spentForBudget(BudgetPlan budget) {
-    return _entries
+    return entries
         .where(
           (entry) =>
               entry.type == EntryType.expense &&
+              !isTransferEntry(entry) &&
               (budget.categoryId == null ||
                   entry.categoryId == budget.categoryId) &&
               _isWithinBudgetPeriod(entry.date, budget),
@@ -1094,11 +1893,20 @@ class AppController extends ChangeNotifier {
 
     if (budget.period == BudgetPeriod.weekly) {
       final budgetEnd = budget.startDate.add(const Duration(days: 7));
-      return budget.startDate.isBefore(monthEnd) && budgetEnd.isAfter(monthStart);
+      return budget.startDate.isBefore(monthEnd) &&
+          budgetEnd.isAfter(monthStart);
     }
 
     return budget.startDate.year == month.year &&
         budget.startDate.month == month.month;
+  }
+
+  bool _isWithinInclusiveRange(DateTime value, DateTime start, DateTime end) {
+    final normalizedValue = _dateOnly(value);
+    final normalizedStart = _dateOnly(start);
+    final normalizedEnd = _dateOnly(end);
+    return !normalizedValue.isBefore(normalizedStart) &&
+        !normalizedValue.isAfter(normalizedEnd);
   }
 
   String _randomId() {
@@ -1141,4 +1949,69 @@ class BudgetUsageSnapshot {
   double get remaining => budget.limit - spent;
   bool get isOverLimit => ratio >= 1;
   bool get isNearLimit => ratio >= 0.8 && ratio < 1;
+}
+
+class WalletBalanceSnapshot {
+  const WalletBalanceSnapshot({
+    required this.wallet,
+    required this.income,
+    required this.expense,
+    required this.transactionCount,
+  });
+
+  final WalletAccount wallet;
+  final double income;
+  final double expense;
+  final int transactionCount;
+
+  double get balance => income - expense;
+}
+
+class TrendSeriesPoint {
+  const TrendSeriesPoint({
+    required this.label,
+    required this.start,
+    required this.end,
+    required this.income,
+    required this.expense,
+  });
+
+  final String label;
+  final DateTime start;
+  final DateTime end;
+  final double income;
+  final double expense;
+}
+
+class TrendComparisonSnapshot {
+  const TrendComparisonSnapshot({
+    required this.label,
+    required this.currentTotal,
+    required this.previousTotal,
+  });
+
+  final String label;
+  final double currentTotal;
+  final double previousTotal;
+
+  double get changeAmount => currentTotal - previousTotal;
+
+  double get changeRatio {
+    if (previousTotal == 0) {
+      return currentTotal == 0 ? 0 : 1;
+    }
+    return changeAmount / previousTotal;
+  }
+
+  bool get isIncrease => changeAmount > 0;
+}
+
+class ExpenseCategorySpendSnapshot {
+  const ExpenseCategorySpendSnapshot({
+    required this.categoryId,
+    required this.amount,
+  });
+
+  final String categoryId;
+  final double amount;
 }

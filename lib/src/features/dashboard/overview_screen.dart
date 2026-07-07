@@ -11,6 +11,8 @@ import '../../widgets/section_header.dart';
 import '../transactions/transaction_form_sheet.dart';
 import 'home_shell.dart';
 
+enum _TrendPeriod { weekly, monthly }
+
 class OverviewScreen extends StatefulWidget implements QuickActionHost {
   const OverviewScreen({required this.controller, super.key});
 
@@ -32,6 +34,7 @@ class OverviewScreen extends StatefulWidget implements QuickActionHost {
 
 class _OverviewScreenState extends State<OverviewScreen> {
   late DateTime _selectedMonth;
+  _TrendPeriod _trendPeriod = _TrendPeriod.monthly;
 
   @override
   void initState() {
@@ -41,221 +44,397 @@ class _OverviewScreenState extends State<OverviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final budgetAlerts = widget.controller.budgetAlertsForMonth(_selectedMonth);
-    final monthlyCategory =
-        widget.controller.getMonthByCategory(_selectedMonth).entries.toList()
-          ..sort((a, b) => b.value.compareTo(a.value));
+    return ListenableBuilder(
+      listenable: widget.controller,
+      builder: (context, _) {
+        final budgetAlerts = widget.controller.budgetAlertsForMonth(
+          _selectedMonth,
+        );
+        final monthlyCategory =
+            widget.controller
+                .getMonthByCategory(_selectedMonth)
+                .entries
+                .toList()
+              ..sort((a, b) => b.value.compareTo(a.value));
+        final monthlyIncome = widget.controller.getMonthIncome(_selectedMonth);
+        final monthlyExpense = widget.controller.getMonthExpense(
+          _selectedMonth,
+        );
+        final weeklyTrend = widget.controller.weeklyExpenseTrend;
+        final monthlyTrend = widget.controller.monthlyExpenseTrend;
+        final trendSeries = _trendPeriod == _TrendPeriod.weekly
+            ? widget.controller.weeklyTrendSeries()
+            : widget.controller.monthlyTrendSeries();
+        final topWeekCategory = widget.controller.topCategoryForRange(
+          _weekStart(DateTime.now()),
+          DateTime.now(),
+        );
+        final topMonthCategory = widget.controller.topCategoryForRange(
+          DateTime(DateTime.now().year, DateTime.now().month, 1),
+          DateTime.now(),
+        );
+        final recentEntries = widget.controller.entries.take(5).toList();
 
-    final monthlyIncome = widget.controller.getMonthIncome(_selectedMonth);
-    final monthlyExpense = widget.controller.getMonthExpense(_selectedMonth);
-
-    final recentEntries = widget.controller.entries.take(5).toList();
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Eintelix Expense Tracker',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Financial control at a glance',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 20),
-          _BalanceHero(
-            controller: widget.controller,
-            selectedMonth: _selectedMonth,
-            monthlyIncome: monthlyIncome,
-            monthlyExpense: monthlyExpense,
-          ),
-          if (budgetAlerts.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _BudgetWarningCard(
-              controller: widget.controller,
-              alert: budgetAlerts.first,
-            ),
-          ],
-          const SizedBox(height: 18),
-          // Month selector dropdown
-          Row(
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Month:',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(width: 8),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Theme.of(context).dividerColor),
-                  color: Theme.of(context).cardColor,
+              Text(
+                'Eintelix Expense Tracker',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textSecondary,
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<DateTime>(
-                      value: _selectedMonth,
-                      items: List.generate(12, (i) {
-                        final now = DateTime.now();
-                        final monthDate = DateTime(
-                          now.year,
-                          now.month - (11 - i),
-                          1,
-                        );
-                        return DropdownMenuItem<DateTime>(
-                          value: monthDate,
-                          child: Text(AppFormatters.monthYear(monthDate)),
-                        );
-                      }),
-                      onChanged: (v) async {
-                        if (v != null) {
-                          setState(() => _selectedMonth = v);
-                          await widget.controller.setLastSelectedMonth(v);
-                          // Clear any persisted transactions date-range when switching month
-                          await widget.controller.setLastSelectedStartDate(
-                            null,
-                          );
-                          await widget.controller.setLastSelectedEndDate(null);
-                        }
-                      },
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Financial control at a glance',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 20),
+              _BalanceHero(
+                controller: widget.controller,
+                selectedMonth: _selectedMonth,
+                monthlyIncome: monthlyIncome,
+                monthlyExpense: monthlyExpense,
+              ),
+              if (budgetAlerts.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _BudgetWarningCard(
+                  controller: widget.controller,
+                  alert: budgetAlerts.first,
+                ),
+              ],
+              if (widget.controller.goals.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                const SectionHeader(
+                  title: 'Savings goals',
+                  subtitle: 'Track the targets you are funding over time',
+                ),
+                const SizedBox(height: 12),
+                ...widget.controller.highlightedGoals.map(
+                  (goal) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _GoalProgressCard(
+                      controller: widget.controller,
+                      title: goal.name,
+                      savedAmount: goal.currentAmount,
+                      targetAmount: goal.targetAmount,
+                      progress: goal.progress,
+                      targetDate: goal.targetDate,
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: _MiniSummaryCard(
-                  label: 'Month Income',
-                  value: monthlyIncome,
-                  color: AppColors.success,
-                  controller: widget.controller,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _MiniSummaryCard(
-                  label: 'Month Expenses',
-                  value: monthlyExpense,
-                  color: AppColors.danger,
-                  controller: widget.controller,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          const SectionHeader(
-            title: 'Category breakdown',
-            subtitle: 'Category pressure points and spending distribution',
-          ),
-          const SizedBox(height: 12),
-          if (monthlyCategory.isEmpty)
-            const EmptyStateCard(
-              title: 'No monthly expense data yet',
-              message:
-                  'Add expense entries to unlock charts and spending insights.',
-              icon: Icons.pie_chart_rounded,
-            )
-          else
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  children: [
-                    SizedBox(
-                      height: 220,
-                      child: PieChart(
-                        PieChartData(
-                          sectionsSpace: 2,
-                          centerSpaceRadius: 48,
-                          sections: monthlyCategory.take(5).map((entry) {
-                            final category = widget.controller.findCategory(
-                              entry.key,
+              ],
+              const SizedBox(height: 18),
+              // Month selector dropdown
+              Row(
+                children: [
+                  const Text(
+                    'Month:',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(width: 8),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Theme.of(context).dividerColor),
+                      color: Theme.of(context).cardColor,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<DateTime>(
+                          value: _selectedMonth,
+                          items: List.generate(12, (i) {
+                            final now = DateTime.now();
+                            final monthDate = DateTime(
+                              now.year,
+                              now.month - (11 - i),
+                              1,
                             );
-                            final total = monthlyCategory.fold<double>(
-                              0,
-                              (sum, item) => sum + item.value,
+                            return DropdownMenuItem<DateTime>(
+                              value: monthDate,
+                              child: Text(AppFormatters.monthYear(monthDate)),
                             );
-                            return PieChartSectionData(
-                              value: entry.value,
-                              color: category?.color ?? AppColors.primary,
-                              title:
-                                  '${((entry.value / total) * 100).round()}%',
-                              radius: 60,
-                              titleStyle: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            );
-                          }).toList(),
+                          }),
+                          onChanged: (v) async {
+                            if (v != null) {
+                              setState(() => _selectedMonth = v);
+                              await widget.controller.setLastSelectedMonth(v);
+                              // Clear any persisted transactions date-range when switching month
+                              await widget.controller.setLastSelectedStartDate(
+                                null,
+                              );
+                              await widget.controller.setLastSelectedEndDate(
+                                null,
+                              );
+                            }
+                          },
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    ...monthlyCategory.take(5).map((entry) {
-                      final category = widget.controller.findCategory(
-                        entry.key,
-                      );
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 12,
-                              height: 12,
-                              decoration: BoxDecoration(
-                                color: category?.color ?? AppColors.primary,
-                                shape: BoxShape.circle,
-                              ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: _MiniSummaryCard(
+                      label: 'Month Income',
+                      value: monthlyIncome,
+                      color: AppColors.success,
+                      controller: widget.controller,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _MiniSummaryCard(
+                      label: 'Month Expenses',
+                      value: monthlyExpense,
+                      color: AppColors.danger,
+                      controller: widget.controller,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              const SectionHeader(
+                title: 'Trends',
+                subtitle:
+                    'Weekly and monthly comparisons with income and expense movement',
+              ),
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final cards = [
+                    _TrendSummaryCard(
+                      title: 'This week vs last week',
+                      snapshot: weeklyTrend,
+                      controller: widget.controller,
+                      topCategory: topWeekCategory == null
+                          ? null
+                          : widget.controller.findCategory(
+                              topWeekCategory.categoryId,
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(category?.name ?? 'Unknown category'),
+                      topCategoryAmount: topWeekCategory?.amount ?? 0,
+                    ),
+                    _TrendSummaryCard(
+                      title: 'This month vs last month',
+                      snapshot: monthlyTrend,
+                      controller: widget.controller,
+                      topCategory: topMonthCategory == null
+                          ? null
+                          : widget.controller.findCategory(
+                              topMonthCategory.categoryId,
                             ),
-                            Text(
-                              AppFormatters.currency(
-                                entry.value,
-                                symbol: widget.controller.currencyCode,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                  ],
+                      topCategoryAmount: topMonthCategory?.amount ?? 0,
+                    ),
+                  ];
+                  if (constraints.maxWidth < 640) {
+                    return Column(
+                      children: [
+                        cards[0],
+                        const SizedBox(height: 12),
+                        cards[1],
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: cards[0]),
+                      const SizedBox(width: 12),
+                      Expanded(child: cards[1]),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              _TrendChartCard(
+                controller: widget.controller,
+                period: _trendPeriod,
+                points: trendSeries,
+                onPeriodChanged: (value) =>
+                    setState(() => _trendPeriod = value),
+              ),
+              if (widget.controller.highlightedWallets.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                const SectionHeader(
+                  title: 'Wallet balances',
+                  subtitle:
+                      'Cash, bank, savings, and business balances at a glance',
                 ),
+                const SizedBox(height: 12),
+                ...widget.controller.highlightedWallets.map(
+                  (snapshot) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _WalletSnapshotCard(
+                      controller: widget.controller,
+                      snapshot: snapshot,
+                    ),
+                  ),
+                ),
+              ],
+              if (widget.controller.upcomingBills.isNotEmpty ||
+                  widget.controller.upcomingDebtInstallments.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                const SectionHeader(
+                  title: 'Planner reminders',
+                  subtitle:
+                      'Bills and repayment items that need attention soon',
+                ),
+                const SizedBox(height: 12),
+                ...widget.controller.upcomingBills
+                    .take(2)
+                    .map(
+                      (bill) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _PlannerReminderCard(
+                          icon: Icons.receipt_long_rounded,
+                          color: AppColors.warning,
+                          title: bill.name,
+                          subtitle:
+                              'Bill due ${AppFormatters.compactDate(bill.dueDate)}',
+                          amount: AppFormatters.currency(
+                            bill.amount,
+                            symbol: widget.controller.currencyCode,
+                          ),
+                        ),
+                      ),
+                    ),
+                ...widget.controller.upcomingDebtInstallments
+                    .take(2)
+                    .map(
+                      (debt) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _PlannerReminderCard(
+                          icon: Icons.event_repeat_rounded,
+                          color: AppColors.primary,
+                          title: debt.personName,
+                          subtitle:
+                              'Installment due ${AppFormatters.compactDate(debt.nextInstallmentDate!)}',
+                          amount: AppFormatters.currency(
+                            debt.installmentAmount > 0
+                                ? debt.installmentAmount
+                                : debt.remainingAmount,
+                            symbol: widget.controller.currencyCode,
+                          ),
+                        ),
+                      ),
+                    ),
+              ],
+              const SizedBox(height: 24),
+              const SectionHeader(
+                title: 'Category breakdown',
+                subtitle: 'Category pressure points and spending distribution',
               ),
-            ),
-          const SizedBox(height: 24),
-          const SectionHeader(
-            title: 'Recent activity',
-            subtitle: 'Latest income and expense items',
+              const SizedBox(height: 12),
+              if (monthlyCategory.isEmpty)
+                const EmptyStateCard(
+                  title: 'No monthly expense data yet',
+                  message:
+                      'Add expense entries to unlock charts and spending insights.',
+                  icon: Icons.pie_chart_rounded,
+                )
+              else
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          height: 220,
+                          child: PieChart(
+                            PieChartData(
+                              sectionsSpace: 2,
+                              centerSpaceRadius: 48,
+                              sections: monthlyCategory.take(5).map((entry) {
+                                final category = widget.controller.findCategory(
+                                  entry.key,
+                                );
+                                final total = monthlyCategory.fold<double>(
+                                  0,
+                                  (sum, item) => sum + item.value,
+                                );
+                                return PieChartSectionData(
+                                  value: entry.value,
+                                  color: category?.color ?? AppColors.primary,
+                                  title:
+                                      '${((entry.value / total) * 100).round()}%',
+                                  radius: 60,
+                                  titleStyle: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ...monthlyCategory.take(5).map((entry) {
+                          final category = widget.controller.findCategory(
+                            entry.key,
+                          );
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    color: category?.color ?? AppColors.primary,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    category?.name ?? 'Unknown category',
+                                  ),
+                                ),
+                                Text(
+                                  AppFormatters.currency(
+                                    entry.value,
+                                    symbol: widget.controller.currencyCode,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 24),
+              const SectionHeader(
+                title: 'Recent activity',
+                subtitle: 'Latest income and expense items',
+              ),
+              const SizedBox(height: 12),
+              if (recentEntries.isEmpty)
+                const EmptyStateCard(
+                  title: 'Nothing recorded yet',
+                  message: 'Create your first entry to populate the ledger.',
+                  icon: Icons.receipt_long_rounded,
+                )
+              else
+                ...recentEntries.map(
+                  (entry) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _EntryTile(
+                      controller: widget.controller,
+                      entry: entry,
+                    ),
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(height: 12),
-          if (recentEntries.isEmpty)
-            const EmptyStateCard(
-              title: 'Nothing recorded yet',
-              message: 'Create your first entry to populate the ledger.',
-              icon: Icons.receipt_long_rounded,
-            )
-          else
-            ...recentEntries.map(
-              (entry) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _EntryTile(controller: widget.controller, entry: entry),
-              ),
-            ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -323,7 +502,7 @@ class _BalanceHeroState extends State<_BalanceHero>
   @override
   Widget build(BuildContext context) {
     final netBalance = widget.monthlyIncome - widget.monthlyExpense;
-    final balanceColor = netBalance < 0 ? AppColors.danger : Colors.white;
+    final balanceColor = Colors.white;
     final amountText = _formatBalanceAmount(
       value: netBalance,
       symbol: widget.controller.currencyCode,
@@ -336,30 +515,22 @@ class _BalanceHeroState extends State<_BalanceHero>
       builder: (context, child) {
         final pulseValue = isNegative ? _pulseController.value : 0.0;
         final glowColor = Color.lerp(
-          AppColors.danger.withValues(alpha: 0.16),
-          AppColors.danger.withValues(alpha: 0.42),
+          AppColors.danger.withValues(alpha: 0.08),
+          AppColors.danger.withValues(alpha: 0.18),
           pulseValue,
         )!;
         final startColor = isNegative
-            ? Color.lerp(
-                const Color(0xFF5A2230),
-                const Color(0xFF7D2936),
-                pulseValue,
-              )!
+            ? const Color(0xFF7E2838)
             : AppColors.primaryDark;
         final midColor = isNegative
-            ? Color.lerp(AppColors.danger, const Color(0xFFC94844), pulseValue)!
+            ? const Color(0xFFBF4946)
             : AppColors.primary;
         final endColor = isNegative
-            ? Color.lerp(
-                const Color(0xFFB64045),
-                const Color(0xFFE16A61),
-                pulseValue,
-              )!
+            ? const Color(0xFFDD655A)
             : const Color(0xFF5578AE);
 
         return Card(
-          elevation: isNegative ? 2 + (pulseValue * 8) : 1,
+          elevation: isNegative ? 2 + (pulseValue * 2) : 1,
           shadowColor: glowColor,
           child: Container(
             width: double.infinity,
@@ -367,14 +538,15 @@ class _BalanceHeroState extends State<_BalanceHero>
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
               border: isNegative
-                  ? Border.all(color: glowColor, width: 1.5)
+                  ? Border.all(color: glowColor, width: 1.2)
                   : null,
               boxShadow: isNegative
                   ? [
                       BoxShadow(
                         color: glowColor,
-                        blurRadius: 20 + (pulseValue * 18),
-                        spreadRadius: 1 + (pulseValue * 2),
+                        blurRadius: 12 + (pulseValue * 6),
+                        spreadRadius: pulseValue,
+                        offset: const Offset(0, 6),
                       ),
                     ]
                   : null,
@@ -401,7 +573,9 @@ class _BalanceHeroState extends State<_BalanceHero>
               ),
               IconButton(
                 onPressed: () {
-                  widget.controller.setHideBalances(!widget.controller.hideBalances);
+                  widget.controller.setHideBalances(
+                    !widget.controller.hideBalances,
+                  );
                 },
                 icon: Icon(
                   widget.controller.hideBalances
@@ -421,7 +595,9 @@ class _BalanceHeroState extends State<_BalanceHero>
           Text(
             amountText,
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              color: widget.controller.hideBalances ? Colors.white : balanceColor,
+              color: widget.controller.hideBalances
+                  ? Colors.white
+                  : balanceColor,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -535,6 +711,95 @@ class _BudgetWarningCard extends StatelessWidget {
   }
 }
 
+class _GoalProgressCard extends StatelessWidget {
+  const _GoalProgressCard({
+    required this.controller,
+    required this.title,
+    required this.savedAmount,
+    required this.targetAmount,
+    required this.progress,
+    this.targetDate,
+  });
+
+  final AppController controller;
+  final String title;
+  final double savedAmount;
+  final double targetAmount;
+  final double progress;
+  final DateTime? targetDate;
+
+  @override
+  Widget build(BuildContext context) {
+    final remaining = targetAmount - savedAmount;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${(progress * 100).round()}%',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                minHeight: 10,
+                value: progress,
+                backgroundColor: AppColors.border,
+                valueColor: const AlwaysStoppedAnimation<Color>(
+                  AppColors.primary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Saved ${AppFormatters.currency(savedAmount, symbol: controller.currencyCode)}',
+                  ),
+                ),
+                Text(
+                  'Target ${AppFormatters.currency(targetAmount, symbol: controller.currencyCode)}',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              remaining <= 0
+                  ? 'Goal reached.'
+                  : 'Remaining ${AppFormatters.currency(remaining, symbol: controller.currencyCode)}'
+                        '${targetDate == null ? '' : ' • by ${AppFormatters.compactDate(targetDate!)}'}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _HeroBadge extends StatelessWidget {
   const _HeroBadge({required this.icon, required this.label});
 
@@ -618,6 +883,451 @@ class _MiniSummaryCard extends StatelessWidget {
   }
 }
 
+class _WalletSnapshotCard extends StatelessWidget {
+  const _WalletSnapshotCard({required this.controller, required this.snapshot});
+
+  final AppController controller;
+  final WalletBalanceSnapshot snapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    final balanceText = _formatBalanceAmount(
+      value: snapshot.balance,
+      symbol: controller.currencyCode,
+      hidden: controller.hideBalances,
+    );
+    final incomeText = _formatBalanceAmount(
+      value: snapshot.income,
+      symbol: controller.currencyCode,
+      hidden: controller.hideBalances,
+    );
+    final expenseText = _formatBalanceAmount(
+      value: snapshot.expense,
+      symbol: controller.currencyCode,
+      hidden: controller.hideBalances,
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: snapshot.wallet.color.withValues(
+                    alpha: 0.14,
+                  ),
+                  child: Icon(
+                    snapshot.wallet.icon,
+                    color: snapshot.wallet.color,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        snapshot.wallet.name,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${snapshot.transactionCount} transaction${snapshot.transactionCount == 1 ? '' : 's'}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Chip(label: Text(snapshot.wallet.kind.name.toUpperCase())),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              balanceText,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+                color: snapshot.balance < 0
+                    ? AppColors.danger
+                    : AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _WalletMetric(
+                    label: 'In',
+                    value: incomeText,
+                    color: AppColors.success,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _WalletMetric(
+                    label: 'Out',
+                    value: expenseText,
+                    color: AppColors.danger,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WalletMetric extends StatelessWidget {
+  const _WalletMetric({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrendSummaryCard extends StatelessWidget {
+  const _TrendSummaryCard({
+    required this.title,
+    required this.snapshot,
+    required this.controller,
+    required this.topCategory,
+    required this.topCategoryAmount,
+  });
+
+  final String title;
+  final TrendComparisonSnapshot snapshot;
+  final AppController controller;
+  final ExpenseCategory? topCategory;
+  final double topCategoryAmount;
+
+  @override
+  Widget build(BuildContext context) {
+    final isIncrease = snapshot.isIncrease;
+    final changeColor = isIncrease ? AppColors.danger : AppColors.success;
+    final deltaText = snapshot.previousTotal == 0 && snapshot.currentTotal > 0
+        ? 'New activity'
+        : '${isIncrease ? '+' : ''}${(snapshot.changeRatio * 100).toStringAsFixed(0)}%';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              AppFormatters.currency(
+                snapshot.currentTotal,
+                symbol: controller.currencyCode,
+              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: changeColor.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isIncrease
+                        ? Icons.trending_up_rounded
+                        : Icons.trending_down_rounded,
+                    size: 16,
+                    color: changeColor,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    deltaText,
+                    style: TextStyle(
+                      color: changeColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Previous period ${AppFormatters.currency(snapshot.previousTotal, symbol: controller.currencyCode)}',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              topCategory == null
+                  ? 'No category leader yet'
+                  : 'Top category: ${topCategory!.name} • ${AppFormatters.currency(topCategoryAmount, symbol: controller.currencyCode)}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TrendChartCard extends StatelessWidget {
+  const _TrendChartCard({
+    required this.controller,
+    required this.period,
+    required this.points,
+    required this.onPeriodChanged,
+  });
+
+  final AppController controller;
+  final _TrendPeriod period;
+  final List<TrendSeriesPoint> points;
+  final ValueChanged<_TrendPeriod> onPeriodChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxValue = points.fold<double>(
+      0,
+      (current, item) =>
+          [current, item.income, item.expense].reduce((a, b) => a > b ? a : b),
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Income vs expense',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        period == _TrendPeriod.weekly
+                            ? 'Last 8 weeks'
+                            : 'Last 6 months',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SegmentedButton<_TrendPeriod>(
+                  segments: const [
+                    ButtonSegment(
+                      value: _TrendPeriod.weekly,
+                      label: Text('Weekly'),
+                    ),
+                    ButtonSegment(
+                      value: _TrendPeriod.monthly,
+                      label: Text('Monthly'),
+                    ),
+                  ],
+                  selected: {period},
+                  onSelectionChanged: (selection) =>
+                      onPeriodChanged(selection.first),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              height: 240,
+              child: BarChart(
+                BarChartData(
+                  maxY: maxValue <= 0 ? 10 : maxValue * 1.2,
+                  gridData: const FlGridData(
+                    drawVerticalLine: false,
+                    horizontalInterval: 5000,
+                  ),
+                  borderData: FlBorderData(show: false),
+                  titlesData: FlTitlesData(
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    leftTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          final index = value.toInt();
+                          if (index < 0 || index >= points.length) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              points[index].label,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  barGroups: List.generate(points.length, (index) {
+                    final point = points[index];
+                    return BarChartGroupData(
+                      x: index,
+                      barsSpace: 6,
+                      barRods: [
+                        BarChartRodData(
+                          toY: point.income,
+                          width: 10,
+                          borderRadius: BorderRadius.circular(8),
+                          color: AppColors.success,
+                        ),
+                        BarChartRodData(
+                          toY: point.expense,
+                          width: 10,
+                          borderRadius: BorderRadius.circular(8),
+                          color: AppColors.danger,
+                        ),
+                      ],
+                    );
+                  }),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: const [
+                _TrendLegend(color: AppColors.success, label: 'Income'),
+                _TrendLegend(color: AppColors.danger, label: 'Expense'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TrendLegend extends StatelessWidget {
+  const _TrendLegend({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(label),
+      ],
+    );
+  }
+}
+
+class _PlannerReminderCard extends StatelessWidget {
+  const _PlannerReminderCard({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.amount,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final String amount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: color.withValues(alpha: 0.12),
+          child: Icon(icon, color: color),
+        ),
+        title: Text(title),
+        subtitle: Text(subtitle),
+        trailing: Text(
+          amount,
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+        ),
+      ),
+    );
+  }
+}
+
 String _formatBalanceAmount({
   required double value,
   required String symbol,
@@ -629,6 +1339,12 @@ String _formatBalanceAmount({
 
   return '$symbol ••••••';
 }
+
+DateTime _weekStart(DateTime value) => DateTime(
+  value.year,
+  value.month,
+  value.day,
+).subtract(Duration(days: value.weekday - 1));
 
 class _EntryTile extends StatelessWidget {
   const _EntryTile({required this.controller, required this.entry});

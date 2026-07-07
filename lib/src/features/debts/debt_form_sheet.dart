@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../data/models/debt_record.dart';
+import '../../data/models/expense_entry.dart';
 import '../../data/services/app_controller.dart';
 
 class DebtFormSheet extends StatefulWidget {
@@ -21,10 +22,14 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
   late final TextEditingController _amountController;
   late final TextEditingController _phoneController;
   late final TextEditingController _noteController;
+  late final TextEditingController _amountPaidController;
+  late final TextEditingController _installmentAmountController;
   late DebtType _type;
   late DebtStatus _status;
   late DebtPersonSource _source;
   DateTime? _dueDate;
+  DateTime? _nextInstallmentDate;
+  RecurrenceFrequency _repaymentFrequency = RecurrenceFrequency.none;
   String? _contactId;
   bool _isPickingContact = false;
   List<Contact> _cachedContacts = const [];
@@ -39,10 +44,22 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
     );
     _phoneController = TextEditingController(text: debt?.phoneNumber ?? '');
     _noteController = TextEditingController(text: debt?.note ?? '');
+    _amountPaidController = TextEditingController(
+      text: debt != null && debt.amountPaid > 0
+          ? debt.amountPaid.toString()
+          : '',
+    );
+    _installmentAmountController = TextEditingController(
+      text: debt != null && debt.installmentAmount > 0
+          ? debt.installmentAmount.toString()
+          : '',
+    );
     _type = debt?.type ?? DebtType.owedToMe;
     _status = debt?.status ?? DebtStatus.active;
     _source = debt?.personSource ?? DebtPersonSource.manual;
     _dueDate = debt?.dueDate;
+    _nextInstallmentDate = debt?.nextInstallmentDate;
+    _repaymentFrequency = debt?.repaymentFrequency ?? RecurrenceFrequency.none;
     _contactId = debt?.contactId;
   }
 
@@ -52,6 +69,8 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
     _amountController.dispose();
     _phoneController.dispose();
     _noteController.dispose();
+    _amountPaidController.dispose();
+    _installmentAmountController.dispose();
     super.dispose();
   }
 
@@ -150,6 +169,16 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
               decoration: const InputDecoration(labelText: 'Amount'),
             ),
             const SizedBox(height: 12),
+            TextField(
+              controller: _amountPaidController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Amount paid so far',
+              ),
+            ),
+            const SizedBox(height: 12),
             SegmentedButton<DebtStatus>(
               segments: const [
                 ButtonSegment(value: DebtStatus.active, label: Text('Active')),
@@ -168,6 +197,46 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
               controller: _noteController,
               maxLines: 3,
               decoration: const InputDecoration(labelText: 'Note'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _installmentAmountController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Installment amount',
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<RecurrenceFrequency>(
+              initialValue: _repaymentFrequency,
+              decoration: const InputDecoration(
+                labelText: 'Repayment frequency',
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: RecurrenceFrequency.none,
+                  child: Text('No repayment schedule'),
+                ),
+                DropdownMenuItem(
+                  value: RecurrenceFrequency.weekly,
+                  child: Text('Weekly'),
+                ),
+                DropdownMenuItem(
+                  value: RecurrenceFrequency.monthly,
+                  child: Text('Monthly'),
+                ),
+                DropdownMenuItem(
+                  value: RecurrenceFrequency.yearly,
+                  child: Text('Yearly'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _repaymentFrequency = value);
+                }
+              },
             ),
             const SizedBox(height: 12),
             Card(
@@ -189,6 +258,33 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
                       ),
                     TextButton(
                       onPressed: _pickDueDate,
+                      child: const Text('Set date'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.event_repeat_rounded),
+                title: const Text('Next installment date'),
+                subtitle: Text(
+                  _nextInstallmentDate == null
+                      ? 'No installment date selected'
+                      : '${_nextInstallmentDate!.day}/${_nextInstallmentDate!.month}/${_nextInstallmentDate!.year}',
+                ),
+                trailing: Wrap(
+                  spacing: 8,
+                  children: [
+                    if (_nextInstallmentDate != null)
+                      TextButton(
+                        onPressed: () =>
+                            setState(() => _nextInstallmentDate = null),
+                        child: const Text('Clear'),
+                      ),
+                    TextButton(
+                      onPressed: _pickNextInstallmentDate,
                       child: const Text('Set date'),
                     ),
                   ],
@@ -222,6 +318,18 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
     );
     if (selectedDate != null) {
       setState(() => _dueDate = selectedDate);
+    }
+  }
+
+  Future<void> _pickNextInstallmentDate() async {
+    final selectedDate = await showDatePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
+      initialDate: _nextInstallmentDate ?? _dueDate ?? DateTime.now(),
+    );
+    if (selectedDate != null) {
+      setState(() => _nextInstallmentDate = selectedDate);
     }
   }
 
@@ -293,9 +401,19 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
 
   Future<void> _submit() async {
     final amount = double.tryParse(_amountController.text.trim());
-    if (_nameController.text.trim().isEmpty || amount == null || amount <= 0) {
+    final amountPaid = double.tryParse(_amountPaidController.text.trim()) ?? 0;
+    final installmentAmount =
+        double.tryParse(_installmentAmountController.text.trim()) ?? 0;
+    if (_nameController.text.trim().isEmpty ||
+        amount == null ||
+        amount <= 0 ||
+        amountPaid < 0 ||
+        amountPaid > amount ||
+        installmentAmount < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Provide a valid name and amount.')),
+        const SnackBar(
+          content: Text('Provide valid debt, repayment, and amount values.'),
+        ),
       );
       return;
     }
@@ -314,6 +432,10 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
       note: _noteController.text.trim(),
       contactId: _contactId,
       dueDate: _dueDate,
+      amountPaid: amountPaid,
+      installmentAmount: installmentAmount,
+      nextInstallmentDate: _nextInstallmentDate,
+      repaymentFrequency: _repaymentFrequency,
     );
 
     if (widget.debt == null) {

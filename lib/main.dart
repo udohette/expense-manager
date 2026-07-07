@@ -4,9 +4,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'src/core/config/app_environment.dart';
 import 'src/app/expense_tracker_app.dart';
 import 'src/data/models/budget_plan.dart';
+import 'src/data/models/bill_record.dart';
 import 'src/data/models/debt_record.dart';
 import 'src/data/models/expense_category.dart';
 import 'src/data/models/expense_entry.dart';
+import 'src/data/models/savings_goal.dart';
+import 'src/data/models/wallet_account.dart';
 import 'src/data/services/app_controller.dart';
 import 'src/data/services/auth_controller.dart';
 import 'src/data/services/data_sync_service.dart';
@@ -26,14 +29,19 @@ Future<void> main() async {
   await storage.initialize();
   storage.registerAdapter(EntryTypeAdapter());
   storage.registerAdapter(TransactionSourceAdapter());
+  storage.registerAdapter(RecurrenceFrequencyAdapter());
   storage.registerAdapter(ExpenseCategoryAdapter());
   storage.registerAdapter(ExpenseEntryAdapter());
   storage.registerAdapter(BudgetPeriodAdapter());
   storage.registerAdapter(BudgetPlanAdapter());
+  storage.registerAdapter(BillRecordAdapter());
   storage.registerAdapter(DebtTypeAdapter());
   storage.registerAdapter(DebtStatusAdapter());
   storage.registerAdapter(DebtPersonSourceAdapter());
   storage.registerAdapter(DebtRecordAdapter());
+  storage.registerAdapter(SavingsGoalAdapter());
+  storage.registerAdapter(WalletKindAdapter());
+  storage.registerAdapter(WalletAccountAdapter());
   await storage.openBoxes();
 
   final supabaseClient = AppEnvironment.hasSupabase

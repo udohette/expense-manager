@@ -5,7 +5,9 @@ import '../../data/services/app_controller.dart';
 import '../../widgets/branded_logo.dart';
 import '../../widgets/section_header.dart';
 import '../splash/splash_screen.dart';
+import '../bills/bills_screen.dart';
 import '../categories/categories_screen.dart';
+import '../wallets/wallets_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({required this.controller, super.key});
@@ -347,6 +349,38 @@ class SettingsScreen extends StatelessWidget {
                         MaterialPageRoute(
                           builder: (_) =>
                               CategoriesScreen(controller: controller),
+                        ),
+                      );
+                    },
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.account_balance_wallet_rounded),
+                    title: const Text('Manage wallets'),
+                    subtitle: const Text(
+                      'Create cash, bank, savings, and business accounts',
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => WalletsScreen(controller: controller),
+                        ),
+                      );
+                    },
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.receipt_long_rounded),
+                    title: const Text('Manage bills'),
+                    subtitle: const Text(
+                      'Plan recurring bills and see which ones are due soon',
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => BillsScreen(controller: controller),
                         ),
                       );
                     },

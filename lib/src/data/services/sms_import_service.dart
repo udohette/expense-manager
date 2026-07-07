@@ -91,6 +91,19 @@ class SmsImportService {
     }
   }
 
+  Future<bool> requestSmsPermission() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      return false;
+    }
+
+    try {
+      final granted = await _channel.invokeMethod<bool>('requestSmsPermission');
+      return granted ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<SmsImportSession> prepareImport({
     required List<ExpenseEntry> existingEntries,
     required List<ExpenseCategory> categories,

@@ -32,6 +32,7 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "hasSmsPermission" -> result.success(hasSmsPermission())
+                    "requestSmsPermission" -> handleRequestSmsPermission(call, result)
                     "getSmsMessages" -> handleGetSmsMessages(call, result)
                     else -> result.notImplemented()
                 }
@@ -72,6 +73,21 @@ class MainActivity : FlutterActivity() {
         }
 
         result.success(querySmsMessages(call))
+    }
+
+    private fun handleRequestSmsPermission(call: MethodCall, result: MethodChannel.Result) {
+        if (hasSmsPermission()) {
+            result.success(true)
+            return
+        }
+
+        pendingResult = result
+        pendingCall = call
+        ActivityCompat.requestPermissions(
+            this,
+            arrayOf(Manifest.permission.READ_SMS),
+            readSmsRequestCode
+        )
     }
 
     private fun registerSmsReceiver() {
@@ -180,7 +196,16 @@ class MainActivity : FlutterActivity() {
         val granted = grantResults.isNotEmpty() &&
             grantResults[0] == PackageManager.PERMISSION_GRANTED
         if (!granted) {
-            result.error("permission_denied", "SMS permission denied", null)
+            if (call.method == "requestSmsPermission") {
+                result.success(false)
+            } else {
+                result.error("permission_denied", "SMS permission denied", null)
+            }
+            return
+        }
+
+        if (call.method == "requestSmsPermission") {
+            result.success(true)
             return
         }
 

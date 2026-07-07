@@ -38,9 +38,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   EntryType? _filter;
   String? _selectedCategory;
   String? _selectedBank;
+  String? _selectedPaymentMethod;
+  String? _selectedTag;
+  String? _selectedWalletAccountId;
   DateTime? _startDate;
   DateTime? _endDate;
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _minAmountController = TextEditingController();
+  final TextEditingController _maxAmountController = TextEditingController();
   bool _isImportingFromSms = false;
   _TransactionViewMode _viewMode = _TransactionViewMode.regular;
   bool _showAdvancedFilters = false;
@@ -63,6 +68,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   void dispose() {
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
+    _minAmountController.dispose();
+    _maxAmountController.dispose();
     super.dispose();
   }
 
@@ -76,8 +83,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       _filter = null;
       _selectedCategory = null;
       _selectedBank = null;
+      _selectedPaymentMethod = null;
+      _selectedTag = null;
+      _selectedWalletAccountId = null;
       _startDate = null;
       _endDate = null;
+      _minAmountController.clear();
+      _maxAmountController.clear();
       _searchController.clear();
     });
     await widget.controller.setLastSelectedCategory(null);
@@ -91,6 +103,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth < 640;
     final allEntries = widget.controller.entries;
+    final recurringTemplates = widget.controller.recurringTemplates;
+    final minAmount = double.tryParse(_minAmountController.text.trim());
+    final maxAmount = double.tryParse(_maxAmountController.text.trim());
     final bankOptions =
         allEntries
             .map(_resolvedBankName)
@@ -98,14 +113,51 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             .toSet()
             .toList()
           ..sort();
+    final paymentMethodOptions =
+        allEntries
+            .map((entry) => entry.paymentMethod.trim())
+            .where((value) => value.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+    final tagOptions =
+        allEntries
+            .map((entry) => entry.tag.trim())
+            .where((value) => value.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+    final walletOptions =
+        widget.controller.wallets
+            .where(
+              (wallet) => allEntries.any(
+                (entry) =>
+                    widget.controller.resolveWalletIdForEntry(entry) ==
+                    wallet.id,
+              ),
+            )
+            .toList()
+          ..sort((a, b) => a.name.compareTo(b.name));
     final filtered = allEntries.where((entry) {
       final category = widget.controller.findCategory(entry.categoryId);
+      final walletId = widget.controller.resolveWalletIdForEntry(entry);
       final matchesType = _filter == null || entry.type == _filter;
       final matchesCategory =
           _selectedCategory == null || entry.categoryId == _selectedCategory;
       final resolvedBank = _resolvedBankName(entry);
       final matchesBank =
           _selectedBank == null || resolvedBank == _selectedBank;
+      final matchesPaymentMethod =
+          _selectedPaymentMethod == null ||
+          entry.paymentMethod.trim() == _selectedPaymentMethod;
+      final matchesTag =
+          _selectedTag == null || entry.tag.trim() == _selectedTag;
+      final matchesWallet =
+          _selectedWalletAccountId == null ||
+          walletId == _selectedWalletAccountId;
+      final matchesAmount =
+          (minAmount == null || entry.amount >= minAmount) &&
+          (maxAmount == null || entry.amount <= maxAmount);
       final matchesViewMode =
           _viewMode == _TransactionViewMode.regular || resolvedBank.isNotEmpty;
       final matchesDateRange =
@@ -120,11 +172,24 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           entry.title.toLowerCase().contains(query) ||
           (category?.name.toLowerCase().contains(query) ?? false) ||
           entry.note.toLowerCase().contains(query) ||
+          entry.paymentMethod.toLowerCase().contains(query) ||
+          entry.tag.toLowerCase().contains(query) ||
+          entry.merchantOrSender.toLowerCase().contains(query) ||
           resolvedBank.toLowerCase().contains(query) ||
-          entry.accountHint.toLowerCase().contains(query);
+          entry.accountHint.toLowerCase().contains(query) ||
+          (widget.controller
+                  .findWallet(walletId)
+                  ?.name
+                  .toLowerCase()
+                  .contains(query) ??
+              false);
       return matchesType &&
           matchesCategory &&
           matchesBank &&
+          matchesPaymentMethod &&
+          matchesTag &&
+          matchesWallet &&
+          matchesAmount &&
           matchesViewMode &&
           matchesDateRange &&
           matchesQuery;
@@ -188,7 +253,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           child: TextField(
                             controller: _searchController,
                             decoration: InputDecoration(
-                              hintText: 'Search description, bank, account',
+                              hintText: 'Search description, bank, tag, wallet',
                               prefixIcon: const Icon(Icons.search_rounded),
                               suffixIcon: query.isEmpty
                                   ? null
@@ -383,30 +448,131 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                             );
                           },
                         ),
-                      if (_viewMode == _TransactionViewMode.bank)
-                        _FilterDropdown(
-                          label: 'Bank',
-                          value: _selectedBank,
-                          hint: bankOptions.isEmpty
-                              ? 'No bank imports yet'
-                              : 'All Banks',
-                          items: [
-                            const DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text('All Banks'),
+                      _FilterDropdown(
+                        label: 'Bank',
+                        value: _selectedBank,
+                        hint: bankOptions.isEmpty
+                            ? 'No bank imports yet'
+                            : 'All Banks',
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('All Banks'),
+                          ),
+                          ...bankOptions.map(
+                            (bank) => DropdownMenuItem<String?>(
+                              value: bank,
+                              child: Text(bank),
                             ),
-                            ...bankOptions.map(
-                              (bank) => DropdownMenuItem<String?>(
-                                value: bank,
-                                child: Text(bank),
+                          ),
+                        ],
+                        onChanged: bankOptions.isEmpty
+                            ? null
+                            : (value) => setState(() => _selectedBank = value),
+                      ),
+                      const SizedBox(height: 10),
+                      _FilterDropdown(
+                        label: 'Payment method',
+                        value: _selectedPaymentMethod,
+                        hint: paymentMethodOptions.isEmpty
+                            ? 'No methods yet'
+                            : 'All payment methods',
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('All payment methods'),
+                          ),
+                          ...paymentMethodOptions.map(
+                            (method) => DropdownMenuItem<String?>(
+                              value: method,
+                              child: Text(method),
+                            ),
+                          ),
+                        ],
+                        onChanged: paymentMethodOptions.isEmpty
+                            ? null
+                            : (value) => setState(
+                                () => _selectedPaymentMethod = value,
                               ),
+                      ),
+                      const SizedBox(height: 10),
+                      _FilterDropdown(
+                        label: 'Tag',
+                        value: _selectedTag,
+                        hint: tagOptions.isEmpty ? 'No tags yet' : 'All tags',
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('All tags'),
+                          ),
+                          ...tagOptions.map(
+                            (tag) => DropdownMenuItem<String?>(
+                              value: tag,
+                              child: Text(tag),
                             ),
-                          ],
-                          onChanged: bankOptions.isEmpty
-                              ? null
-                              : (value) =>
-                                    setState(() => _selectedBank = value),
-                        ),
+                          ),
+                        ],
+                        onChanged: tagOptions.isEmpty
+                            ? null
+                            : (value) => setState(() => _selectedTag = value),
+                      ),
+                      const SizedBox(height: 10),
+                      _FilterDropdown(
+                        label: 'Wallet / Account',
+                        value: _selectedWalletAccountId,
+                        hint: walletOptions.isEmpty
+                            ? 'No wallet-linked entries yet'
+                            : 'All wallets / accounts',
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('All wallets / accounts'),
+                          ),
+                          ...walletOptions.map(
+                            (wallet) => DropdownMenuItem<String?>(
+                              value: wallet.id,
+                              child: Text(wallet.name),
+                            ),
+                          ),
+                        ],
+                        onChanged: walletOptions.isEmpty
+                            ? null
+                            : (value) => setState(
+                                () => _selectedWalletAccountId = value,
+                              ),
+                      ),
+                      const SizedBox(height: 10),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final stacked = constraints.maxWidth < 560;
+                          final minField = _AmountRangeField(
+                            controller: _minAmountController,
+                            label: 'Min amount',
+                            onChanged: (_) => setState(() {}),
+                          );
+                          final maxField = _AmountRangeField(
+                            controller: _maxAmountController,
+                            label: 'Max amount',
+                            onChanged: (_) => setState(() {}),
+                          );
+                          if (stacked) {
+                            return Column(
+                              children: [
+                                minField,
+                                const SizedBox(height: 10),
+                                maxField,
+                              ],
+                            );
+                          }
+                          return Row(
+                            children: [
+                              Expanded(child: minField),
+                              const SizedBox(width: 10),
+                              Expanded(child: maxField),
+                            ],
+                          );
+                        },
+                      ),
                       const SizedBox(height: 10),
                       LayoutBuilder(
                         builder: (context, constraints) {
@@ -494,7 +660,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             if (_startDate != null ||
                 _endDate != null ||
                 _selectedCategory != null ||
-                _selectedBank != null)
+                _selectedBank != null ||
+                _selectedPaymentMethod != null ||
+                _selectedTag != null ||
+                _selectedWalletAccountId != null ||
+                _minAmountController.text.trim().isNotEmpty ||
+                _maxAmountController.text.trim().isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Align(
@@ -516,6 +687,48 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 debitTotal: bankDebitTotal,
                 netTotal: bankNetTotal,
                 currencyCode: widget.controller.currencyCode,
+              ),
+              const SizedBox(height: 16),
+            ],
+            if (_viewMode == _TransactionViewMode.regular &&
+                recurringTemplates.isNotEmpty) ...[
+              Text(
+                'Recurring Schedules',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Templates that automatically create dated entries up to today.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              ...recurringTemplates.map(
+                (template) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _RecurringTemplateCard(
+                    template: template,
+                    controller: widget.controller,
+                    onEdit: () async => _showEntryEditor(template),
+                    onDelete: () async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      final shouldDelete = await _confirmEntryDelete(template);
+                      if (shouldDelete) {
+                        await widget.controller.deleteEntry(template.id);
+                        if (mounted) {
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                '${template.title} schedule deleted',
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
             ],
@@ -570,6 +783,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   final category = widget.controller.findCategory(
                     entry.categoryId,
                   );
+                  final isRecurringOccurrence = entry.isRecurringOccurrence;
+                  final isTransferEntry = widget.controller.isTransferEntry(
+                    entry,
+                  );
                   return Dismissible(
                     key: ValueKey('entry-${entry.id}'),
                     background: const _TransactionSwipeActionBackground(
@@ -586,8 +803,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           label: 'Delete',
                         ),
                     confirmDismiss: (direction) async {
-                      if (direction == DismissDirection.startToEnd) {
+                      if (isRecurringOccurrence) {
+                        return false;
+                      }
+                      if (direction == DismissDirection.startToEnd &&
+                          !isTransferEntry) {
                         await _showEntryEditor(entry);
+                        return false;
+                      }
+                      if (direction == DismissDirection.startToEnd &&
+                          isTransferEntry) {
                         return false;
                       }
                       return _confirmEntryDelete(entry);
@@ -638,6 +863,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                 ),
                                 const SizedBox(height: 8),
                                 if (entry.note.isNotEmpty) Text(entry.note),
+                                if (isRecurringOccurrence) ...[
+                                  const SizedBox(height: 8),
+                                  const _RecurringEntryBanner(),
+                                ],
+                                if (isTransferEntry) ...[
+                                  const SizedBox(height: 8),
+                                  const _TransferEntryBanner(),
+                                ],
                                 const SizedBox(height: 12),
                                 Wrap(
                                   spacing: 8,
@@ -653,35 +886,37 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                       },
                                       child: const Text('View'),
                                     ),
-                                    TextButton(
-                                      onPressed: () async {
-                                        await _showEntryEditor(entry);
-                                      },
-                                      child: const Text('Edit'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () async {
-                                        final messenger = ScaffoldMessenger.of(
-                                          context,
-                                        );
-                                        final shouldDelete =
-                                            await _confirmEntryDelete(entry);
-                                        if (shouldDelete) {
-                                          await widget.controller.deleteEntry(
-                                            entry.id,
-                                          );
-                                          messenger.showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                '${entry.title} deleted',
+                                    if (!isRecurringOccurrence &&
+                                        !isTransferEntry)
+                                      TextButton(
+                                        onPressed: () async {
+                                          await _showEntryEditor(entry);
+                                        },
+                                        child: const Text('Edit'),
+                                      ),
+                                    if (!isRecurringOccurrence)
+                                      TextButton(
+                                        onPressed: () async {
+                                          final messenger =
+                                              ScaffoldMessenger.of(context);
+                                          final shouldDelete =
+                                              await _confirmEntryDelete(entry);
+                                          if (shouldDelete) {
+                                            await widget.controller.deleteEntry(
+                                              entry.id,
+                                            );
+                                            messenger.showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  '${entry.title} deleted',
+                                                ),
                                               ),
-                                            ),
-                                          );
-                                          setState(() {});
-                                        }
-                                      },
-                                      child: const Text('Delete'),
-                                    ),
+                                            );
+                                            setState(() {});
+                                          }
+                                        },
+                                        child: const Text('Delete'),
+                                      ),
                                   ],
                                 ),
                               ],
@@ -715,6 +950,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     ExpenseCategory? category,
   ) async {
     final resolvedBankName = _resolvedBankName(entry);
+    final wallet = widget.controller.findWallet(
+      widget.controller.resolveWalletIdForEntry(entry),
+    );
     final amountText =
         '${entry.type == EntryType.expense ? '-' : '+'}${AppFormatters.currency(entry.amount, symbol: widget.controller.currencyCode)}';
     final sourceLabel = switch (entry.source) {
@@ -762,6 +1000,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   label: 'Payment method',
                   value: entry.paymentMethod,
                 ),
+                if (wallet != null)
+                  _TransactionDetailRow(label: 'Wallet', value: wallet.name),
                 _TransactionDetailRow(
                   label: 'Transaction type',
                   value: entry.type == EntryType.expense
@@ -772,12 +1012,24 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   label: 'Date',
                   value: AppFormatters.compactDate(entry.date),
                 ),
+                if (entry.isRecurringOccurrence)
+                  const _TransactionDetailRow(
+                    label: 'Schedule',
+                    value: 'Auto-generated from a recurring template',
+                  ),
+                if (entry.isRecurringTemplate)
+                  _TransactionDetailRow(
+                    label: 'Repeats',
+                    value: _recurrenceLabel(entry.recurrenceFrequency),
+                  ),
                 _TransactionDetailRow(label: 'Source', value: sourceLabel),
                 if (entry.accountHint.isNotEmpty)
                   _TransactionDetailRow(
                     label: 'Account hint',
                     value: entry.accountHint,
                   ),
+                if (entry.tag.isNotEmpty)
+                  _TransactionDetailRow(label: 'Tag', value: entry.tag),
                 if (entry.merchantOrSender.isNotEmpty)
                   _TransactionDetailRow(
                     label: 'Description',
@@ -800,19 +1052,25 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
-                    onPressed: () async {
-                      Navigator.of(context).pop();
-                      await showModalBottomSheet<void>(
-                        context: context,
-                        isScrollControlled: true,
-                        showDragHandle: true,
-                        builder: (_) => TransactionFormSheet(
-                          controller: widget.controller,
-                          entry: entry,
-                        ),
-                      );
-                    },
-                    child: const Text('Edit entry'),
+                    onPressed: entry.isRecurringOccurrence
+                        ? null
+                        : () async {
+                            Navigator.of(context).pop();
+                            await showModalBottomSheet<void>(
+                              context: context,
+                              isScrollControlled: true,
+                              showDragHandle: true,
+                              builder: (_) => TransactionFormSheet(
+                                controller: widget.controller,
+                                entry: entry,
+                              ),
+                            );
+                          },
+                    child: Text(
+                      entry.isRecurringOccurrence
+                          ? 'Managed by schedule'
+                          : 'Edit entry',
+                    ),
                   ),
                 ),
               ],
@@ -912,20 +1170,62 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   String _buildEntrySubtitle(ExpenseEntry entry, ExpenseCategory? category) {
     final bankName = _resolvedBankName(entry);
+    final wallet = widget.controller.findWallet(
+      widget.controller.resolveWalletIdForEntry(entry),
+    );
+    final recurringLabel = entry.isRecurringOccurrence ? 'Recurring' : null;
+    final transferLabel = widget.controller.isTransferEntry(entry)
+        ? 'Transfer'
+        : null;
+    final tagLabel = entry.tag.trim().isEmpty ? null : '#${entry.tag.trim()}';
     if (bankName.isNotEmpty) {
-      return '$bankName • ${AppFormatters.compactDate(entry.date)}';
+      return [
+        bankName,
+        if (wallet != null) wallet.name,
+        AppFormatters.compactDate(entry.date),
+        ...?tagLabel == null ? null : [tagLabel],
+        ...?transferLabel == null ? null : [transferLabel],
+        ...?recurringLabel == null ? null : [recurringLabel],
+      ].join(' • ');
     }
-    return '${category?.name ?? 'Category'} • ${AppFormatters.compactDate(entry.date)}';
+    return [
+      category?.name ?? 'Category',
+      if (wallet != null) wallet.name,
+      AppFormatters.compactDate(entry.date),
+      ...?tagLabel == null ? null : [tagLabel],
+      ...?transferLabel == null ? null : [transferLabel],
+      ...?recurringLabel == null ? null : [recurringLabel],
+    ].join(' • ');
   }
 
   String _buildEntryMeta(ExpenseEntry entry) {
     final bankName = _resolvedBankName(entry);
+    final wallet = widget.controller.findWallet(
+      widget.controller.resolveWalletIdForEntry(entry),
+    );
     final parts = <String>[
+      if (wallet != null) wallet.name,
       if (bankName.isNotEmpty) bankName else entry.paymentMethod,
       AppFormatters.compactDate(entry.date),
       if (entry.accountHint.isNotEmpty) entry.accountHint,
+      if (entry.tag.isNotEmpty) '#${entry.tag}',
+      if (widget.controller.isTransferEntry(entry)) 'Internal transfer',
+      if (entry.isRecurringOccurrence) 'Scheduled',
     ];
     return parts.join(' • ');
+  }
+
+  String _recurrenceLabel(RecurrenceFrequency frequency) {
+    switch (frequency) {
+      case RecurrenceFrequency.weekly:
+        return 'Weekly';
+      case RecurrenceFrequency.monthly:
+        return 'Monthly';
+      case RecurrenceFrequency.yearly:
+        return 'Yearly';
+      case RecurrenceFrequency.none:
+        return 'Does not repeat';
+    }
   }
 
   String get _filterDropdownValue {
@@ -1348,6 +1648,28 @@ class _DateFilterButton extends StatelessWidget {
   }
 }
 
+class _AmountRangeField extends StatelessWidget {
+  const _AmountRangeField({
+    required this.controller,
+    required this.label,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      onChanged: onChanged,
+      decoration: InputDecoration(labelText: label, prefixText: 'NGN '),
+    );
+  }
+}
+
 class _BankSummaryCard extends StatelessWidget {
   const _BankSummaryCard({
     required this.periodLabel,
@@ -1472,6 +1794,190 @@ class _BankSummaryCard extends StatelessWidget {
                     ),
                   ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RecurringTemplateCard extends StatelessWidget {
+  const _RecurringTemplateCard({
+    required this.template,
+    required this.controller,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final ExpenseEntry template;
+  final AppController controller;
+  final Future<void> Function() onEdit;
+  final Future<void> Function() onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final nextDueDate = controller.nextDueDateForTemplate(template);
+    final recurrenceLabel = switch (template.recurrenceFrequency) {
+      RecurrenceFrequency.weekly => 'Weekly',
+      RecurrenceFrequency.monthly => 'Monthly',
+      RecurrenceFrequency.yearly => 'Yearly',
+      RecurrenceFrequency.none => 'No repeat',
+    };
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        template.title,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${AppFormatters.currency(template.amount, symbol: controller.currencyCode)} • $recurrenceLabel',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
+                Chip(
+                  label: Text(
+                    template.type == EntryType.expense ? 'Expense' : 'Income',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _SchedulePill(
+                  icon: Icons.event_available_rounded,
+                  label: nextDueDate == null
+                      ? 'No upcoming occurrence'
+                      : 'Next due ${AppFormatters.compactDate(nextDueDate)}',
+                ),
+                _SchedulePill(
+                  icon: Icons.calendar_today_rounded,
+                  label: 'Starts ${AppFormatters.compactDate(template.date)}',
+                ),
+                if (template.recurrenceEndDate != null)
+                  _SchedulePill(
+                    icon: Icons.event_busy_rounded,
+                    label:
+                        'Ends ${AppFormatters.compactDate(template.recurrenceEndDate!)}',
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              children: [
+                TextButton(
+                  onPressed: onEdit,
+                  child: const Text('Edit schedule'),
+                ),
+                TextButton(
+                  onPressed: onDelete,
+                  child: const Text('Delete schedule'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SchedulePill extends StatelessWidget {
+  const _SchedulePill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: AppColors.primary),
+            const SizedBox(width: 6),
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RecurringEntryBanner extends StatelessWidget {
+  const _RecurringEntryBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            Icon(Icons.sync_rounded, size: 16, color: AppColors.primary),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'This entry is generated from a recurring schedule. Edit the schedule instead.',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TransferEntryBanner extends StatelessWidget {
+  const _TransferEntryBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.success.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            Icon(Icons.swap_horiz_rounded, size: 16, color: AppColors.success),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'This entry is part of an internal wallet transfer. Delete it to remove both sides.',
+              ),
             ),
           ],
         ),

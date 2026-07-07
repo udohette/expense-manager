@@ -1,16 +1,22 @@
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/app_settings_snapshot.dart';
+import '../models/bill_record.dart';
 import '../models/budget_plan.dart';
 import '../models/debt_record.dart';
 import '../models/expense_category.dart';
 import '../models/expense_entry.dart';
+import '../models/savings_goal.dart';
+import '../models/wallet_account.dart';
 
 class HiveStorageService {
   static const String categoriesBoxName = 'categories_box';
   static const String entriesBoxName = 'entries_box';
   static const String budgetsBoxName = 'budgets_box';
+  static const String billsBoxName = 'bills_box';
   static const String debtsBoxName = 'debts_box';
+  static const String goalsBoxName = 'goals_box';
+  static const String walletsBoxName = 'wallets_box';
   static const String settingsBoxName = 'settings_box';
 
   Future<void> initialize() async {
@@ -27,7 +33,10 @@ class HiveStorageService {
     await Hive.openBox<ExpenseCategory>(categoriesBoxName);
     await Hive.openBox<ExpenseEntry>(entriesBoxName);
     await Hive.openBox<BudgetPlan>(budgetsBoxName);
+    await Hive.openBox<BillRecord>(billsBoxName);
     await Hive.openBox<DebtRecord>(debtsBoxName);
+    await Hive.openBox<SavingsGoal>(goalsBoxName);
+    await Hive.openBox<WalletAccount>(walletsBoxName);
     await Hive.openBox<dynamic>(settingsBoxName);
   }
 
@@ -38,7 +47,13 @@ class HiveStorageService {
 
   Box<BudgetPlan> get budgetsBox => Hive.box<BudgetPlan>(budgetsBoxName);
 
+  Box<BillRecord> get billsBox => Hive.box<BillRecord>(billsBoxName);
+
   Box<DebtRecord> get debtsBox => Hive.box<DebtRecord>(debtsBoxName);
+
+  Box<SavingsGoal> get goalsBox => Hive.box<SavingsGoal>(goalsBoxName);
+
+  Box<WalletAccount> get walletsBox => Hive.box<WalletAccount>(walletsBoxName);
 
   Box<dynamic> get settingsBox => Hive.box<dynamic>(settingsBoxName);
 
@@ -46,7 +61,10 @@ class HiveStorageService {
     required Iterable<ExpenseCategory> categories,
     required Iterable<ExpenseEntry> entries,
     required Iterable<BudgetPlan> budgets,
+    required Iterable<BillRecord> bills,
     required Iterable<DebtRecord> debts,
+    required Iterable<SavingsGoal> goals,
+    required Iterable<WalletAccount> wallets,
   }) async {
     await categoriesBox.clear();
     await categoriesBox.addAll(categories);
@@ -54,8 +72,14 @@ class HiveStorageService {
     await entriesBox.addAll(entries);
     await budgetsBox.clear();
     await budgetsBox.addAll(budgets);
+    await billsBox.clear();
+    await billsBox.addAll(bills);
     await debtsBox.clear();
     await debtsBox.addAll(debts);
+    await goalsBox.clear();
+    await goalsBox.addAll(goals);
+    await walletsBox.clear();
+    await walletsBox.addAll(wallets);
   }
 
   Future<void> applySettingsSnapshot(AppSettingsSnapshot settings) async {

@@ -33,129 +33,137 @@ class _DebtsScreenState extends State<DebtsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredDebts = widget.controller.debts.where((debt) {
-      return _filter == null || debt.type == _filter;
-    }).toList();
+    return ListenableBuilder(
+      listenable: widget.controller,
+      builder: (context, _) {
+        final filteredDebts = widget.controller.debts.where((debt) {
+          return _filter == null || debt.type == _filter;
+        }).toList();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SectionHeader(
-            title: 'Debts',
-            subtitle:
-                'Track both money owed to you and money you still need to pay',
-          ),
-          const SizedBox(height: 16),
-          Row(
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: _DebtSummaryCard(
-                  title: 'Owed to me',
-                  amount: widget.controller.receivablesTotal,
-                  color: AppColors.success,
-                  controller: widget.controller,
-                ),
+              const SectionHeader(
+                title: 'Debts',
+                subtitle:
+                    'Track both money owed to you and money you still need to pay',
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _DebtSummaryCard(
-                  title: 'I owe',
-                  amount: widget.controller.payablesTotal,
-                  color: AppColors.warning,
-                  controller: widget.controller,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              ChoiceChip(
-                label: const Text('All'),
-                selected: _filter == null,
-                onSelected: (_) => setState(() => _filter = null),
-              ),
-              ChoiceChip(
-                label: const Text('Owed to me'),
-                selected: _filter == DebtType.owedToMe,
-                onSelected: (_) => setState(() => _filter = DebtType.owedToMe),
-              ),
-              ChoiceChip(
-                label: const Text('I owe'),
-                selected: _filter == DebtType.iOwe,
-                onSelected: (_) => setState(() => _filter = DebtType.iOwe),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (filteredDebts.isEmpty)
-            EmptyStateCard(
-              title: 'No debt records yet',
-              message:
-                  'Create a debtor or creditor record manually, or pull the person from your contacts.',
-              icon: Icons.account_balance_wallet_rounded,
-              action: FilledButton(
-                onPressed: () => widget.onQuickAction(context),
-                child: const Text('Add debt'),
-              ),
-            )
-          else
-            ...filteredDebts.map(
-              (debt) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Dismissible(
-                  key: ValueKey('debt-${debt.id}'),
-                  background: const _SwipeActionBackground(
-                    alignment: Alignment.centerLeft,
-                    color: AppColors.primary,
-                    icon: Icons.edit_rounded,
-                    label: 'Edit',
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _DebtSummaryCard(
+                      title: 'Owed to me',
+                      amount: widget.controller.receivablesTotal,
+                      color: AppColors.success,
+                      controller: widget.controller,
+                    ),
                   ),
-                  secondaryBackground: const _SwipeActionBackground(
-                    alignment: Alignment.centerRight,
-                    color: AppColors.danger,
-                    icon: Icons.delete_rounded,
-                    label: 'Delete',
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _DebtSummaryCard(
+                      title: 'I owe',
+                      amount: widget.controller.payablesTotal,
+                      color: AppColors.warning,
+                      controller: widget.controller,
+                    ),
                   ),
-                  confirmDismiss: (direction) async {
-                    if (direction == DismissDirection.startToEnd) {
-                      await _showDebtEditor(debt);
-                      return false;
-                    }
-                    return _confirmDebtDelete(debt);
-                  },
-                  onDismissed: (_) async {
-                    final messenger = ScaffoldMessenger.of(context);
-                    await widget.controller.deleteDebt(debt.id);
-                    messenger.showSnackBar(
-                      SnackBar(content: Text('${debt.personName} deleted')),
-                    );
-                  },
-                  child: _DebtTile(
-                    controller: widget.controller,
-                    debt: debt,
-                    onEdit: () => _showDebtEditor(debt),
-                    onView: () => _showDebtDetails(debt),
-                    onDelete: () async {
-                      final messenger = ScaffoldMessenger.of(context);
-                      final shouldDelete = await _confirmDebtDelete(debt);
-                      if (shouldDelete) {
+                ],
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  ChoiceChip(
+                    label: const Text('All'),
+                    selected: _filter == null,
+                    onSelected: (_) => setState(() => _filter = null),
+                  ),
+                  ChoiceChip(
+                    label: const Text('Owed to me'),
+                    selected: _filter == DebtType.owedToMe,
+                    onSelected: (_) =>
+                        setState(() => _filter = DebtType.owedToMe),
+                  ),
+                  ChoiceChip(
+                    label: const Text('I owe'),
+                    selected: _filter == DebtType.iOwe,
+                    onSelected: (_) => setState(() => _filter = DebtType.iOwe),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (filteredDebts.isEmpty)
+                EmptyStateCard(
+                  title: 'No debt records yet',
+                  message:
+                      'Create a debtor or creditor record manually, or pull the person from your contacts.',
+                  icon: Icons.account_balance_wallet_rounded,
+                  action: FilledButton(
+                    onPressed: () => widget.onQuickAction(context),
+                    child: const Text('Add debt'),
+                  ),
+                )
+              else
+                ...filteredDebts.map(
+                  (debt) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Dismissible(
+                      key: ValueKey('debt-${debt.id}'),
+                      background: const _SwipeActionBackground(
+                        alignment: Alignment.centerLeft,
+                        color: AppColors.primary,
+                        icon: Icons.edit_rounded,
+                        label: 'Edit',
+                      ),
+                      secondaryBackground: const _SwipeActionBackground(
+                        alignment: Alignment.centerRight,
+                        color: AppColors.danger,
+                        icon: Icons.delete_rounded,
+                        label: 'Delete',
+                      ),
+                      confirmDismiss: (direction) async {
+                        if (direction == DismissDirection.startToEnd) {
+                          await _showDebtEditor(debt);
+                          return false;
+                        }
+                        return _confirmDebtDelete(debt);
+                      },
+                      onDismissed: (_) async {
+                        final messenger = ScaffoldMessenger.of(context);
                         await widget.controller.deleteDebt(debt.id);
                         messenger.showSnackBar(
                           SnackBar(content: Text('${debt.personName} deleted')),
                         );
-                      }
-                    },
+                      },
+                      child: _DebtTile(
+                        controller: widget.controller,
+                        debt: debt,
+                        onEdit: () => _showDebtEditor(debt),
+                        onView: () => _showDebtDetails(debt),
+                        onDelete: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final shouldDelete = await _confirmDebtDelete(debt);
+                          if (shouldDelete) {
+                            await widget.controller.deleteDebt(debt.id);
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('${debt.personName} deleted'),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-        ],
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -198,6 +206,20 @@ class _DebtsScreenState extends State<DebtsScreen> {
               _DetailRow(label: 'Direction', value: typeLabel),
               _DetailRow(label: 'Status', value: statusLabel),
               _DetailRow(
+                label: 'Paid so far',
+                value: AppFormatters.currency(
+                  debt.amountPaid,
+                  symbol: widget.controller.currencyCode,
+                ),
+              ),
+              _DetailRow(
+                label: 'Remaining',
+                value: AppFormatters.currency(
+                  debt.remainingAmount,
+                  symbol: widget.controller.currencyCode,
+                ),
+              ),
+              _DetailRow(
                 label: 'Source',
                 value: debt.personSource == DebtPersonSource.contacts
                     ? 'From contacts'
@@ -210,18 +232,46 @@ class _DebtsScreenState extends State<DebtsScreen> {
                   label: 'Due date',
                   value: AppFormatters.compactDate(debt.dueDate!),
                 ),
+              if (debt.nextInstallmentDate != null)
+                _DetailRow(
+                  label: 'Next installment',
+                  value: AppFormatters.compactDate(debt.nextInstallmentDate!),
+                ),
+              if (debt.installmentAmount > 0)
+                _DetailRow(
+                  label: 'Installment amount',
+                  value: AppFormatters.currency(
+                    debt.installmentAmount,
+                    symbol: widget.controller.currencyCode,
+                  ),
+                ),
               if (debt.note.isNotEmpty)
                 _DetailRow(label: 'Note', value: debt.note),
               const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () async {
-                    Navigator.of(context).pop();
-                    await _showDebtEditor(debt);
-                  },
-                  child: const Text('Edit record'),
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await _showDebtEditor(debt);
+                      },
+                      child: const Text('Edit record'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: debt.status == DebtStatus.settled
+                          ? null
+                          : () async {
+                              Navigator.of(context).pop();
+                              await _showPaymentRecorder(debt);
+                            },
+                      child: const Text('Record payment'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -249,6 +299,65 @@ class _DebtsScreenState extends State<DebtsScreen> {
       ),
     );
     return shouldDelete ?? false;
+  }
+
+  Future<void> _showPaymentRecorder(DebtRecord debt) async {
+    final controller = TextEditingController(
+      text: debt.installmentAmount > 0 ? debt.installmentAmount.toString() : '',
+    );
+    final amount = await showModalBottomSheet<double>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 12,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Record payment for ${debt.personName}',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(labelText: 'Payment amount'),
+                autofocus: true,
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () {
+                    Navigator.of(
+                      context,
+                    ).pop(double.tryParse(controller.text.trim()));
+                  },
+                  child: const Text('Save payment'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    controller.dispose();
+    if (amount == null || amount <= 0) {
+      return;
+    }
+    await widget.controller.recordDebtPayment(debt.id, amount);
   }
 }
 

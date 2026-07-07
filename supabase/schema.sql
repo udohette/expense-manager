@@ -27,6 +27,7 @@ create table if not exists public.expense_entries (
   type text not null check (type in ('expense', 'income')),
   payment_method text not null default '',
   note text not null default '',
+  tag text not null default '',
   source text not null default 'manual' check (source in ('manual', 'sms', 'bankApi')),
   external_id text not null default '',
   merchant_or_sender text not null default '',
@@ -34,6 +35,12 @@ create table if not exists public.expense_entries (
   institution_name text not null default '',
   raw_message text not null default '',
   imported_at timestamptz,
+  wallet_account_id text not null default '',
+  recurrence_frequency text not null default 'none' check (recurrence_frequency in ('none', 'weekly', 'monthly', 'yearly')),
+  recurrence_interval integer not null default 1 check (recurrence_interval > 0),
+  recurrence_end_date timestamptz,
+  is_recurring_template boolean not null default false,
+  recurrence_template_id text not null default '',
   updated_at timestamptz not null default timezone('utc', now())
 );
 
@@ -45,6 +52,20 @@ create table if not exists public.budget_plans (
   category_id text,
   start_date timestamptz not null,
   period text not null check (period in ('weekly', 'monthly')),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.bill_records (
+  id text primary key,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  name text not null,
+  amount numeric not null,
+  due_date timestamptz not null,
+  frequency text not null check (frequency in ('weekly', 'monthly', 'yearly')),
+  reminder_days_before integer not null default 3,
+  is_paid boolean not null default false,
+  note text not null default '',
+  wallet_account_id text not null default '',
   updated_at timestamptz not null default timezone('utc', now())
 );
 
@@ -61,6 +82,34 @@ create table if not exists public.debt_records (
   note text not null default '',
   contact_id text,
   due_date timestamptz,
+  amount_paid numeric not null default 0,
+  installment_amount numeric not null default 0,
+  next_installment_date timestamptz,
+  repayment_frequency text not null default 'none' check (repayment_frequency in ('none', 'weekly', 'monthly', 'yearly')),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.savings_goals (
+  id text primary key,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  name text not null,
+  target_amount numeric not null,
+  current_amount numeric not null default 0,
+  created_at timestamptz not null,
+  note text not null default '',
+  target_date timestamptz,
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.wallet_accounts (
+  id text primary key,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  name text not null,
+  kind text not null check (kind in ('cash', 'bank', 'savings', 'business', 'custom')),
+  color_value integer not null,
+  icon_code_point integer not null,
+  note text not null default '',
+  is_default boolean not null default false,
   updated_at timestamptz not null default timezone('utc', now())
 );
 
@@ -68,7 +117,10 @@ alter table public.user_settings enable row level security;
 alter table public.expense_categories enable row level security;
 alter table public.expense_entries enable row level security;
 alter table public.budget_plans enable row level security;
+alter table public.bill_records enable row level security;
 alter table public.debt_records enable row level security;
+alter table public.savings_goals enable row level security;
+alter table public.wallet_accounts enable row level security;
 
 create policy "users manage own settings"
 on public.user_settings
@@ -94,8 +146,26 @@ for all
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
 
+create policy "users manage own bill records"
+on public.bill_records
+for all
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
 create policy "users manage own debts"
 on public.debt_records
+for all
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+create policy "users manage own savings goals"
+on public.savings_goals
+for all
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+create policy "users manage own wallet accounts"
+on public.wallet_accounts
 for all
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);

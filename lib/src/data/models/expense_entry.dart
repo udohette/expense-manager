@@ -16,6 +16,7 @@ class ExpenseEntry extends HiveObject {
     required this.type,
     required this.paymentMethod,
     this.note = '',
+    this.tag = '',
     this.source = TransactionSource.manual,
     this.externalId = '',
     this.merchantOrSender = '',
@@ -39,6 +40,7 @@ class ExpenseEntry extends HiveObject {
   final EntryType type;
   final String paymentMethod;
   final String note;
+  final String tag;
   final TransactionSource source;
   final String externalId;
   final String merchantOrSender;
@@ -66,6 +68,7 @@ class ExpenseEntry extends HiveObject {
     EntryType? type,
     String? paymentMethod,
     String? note,
+    String? tag,
     TransactionSource? source,
     String? externalId,
     String? merchantOrSender,
@@ -89,6 +92,7 @@ class ExpenseEntry extends HiveObject {
       type: type ?? this.type,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       note: note ?? this.note,
+      tag: tag ?? this.tag,
       source: source ?? this.source,
       externalId: externalId ?? this.externalId,
       merchantOrSender: merchantOrSender ?? this.merchantOrSender,
@@ -126,6 +130,7 @@ class ExpenseEntryAdapter extends TypeAdapter<ExpenseEntry> {
       type: fields[5] as EntryType,
       paymentMethod: fields[6] as String,
       note: fields[7] as String? ?? '',
+      tag: fields[21] as String? ?? '',
       source: fields[8] as TransactionSource? ?? TransactionSource.manual,
       externalId: fields[9] as String? ?? '',
       merchantOrSender: fields[10] as String? ?? '',
@@ -145,7 +150,7 @@ class ExpenseEntryAdapter extends TypeAdapter<ExpenseEntry> {
   @override
   void write(BinaryWriter writer, ExpenseEntry obj) {
     writer
-      ..writeByte(21)
+      ..writeByte(22)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -162,6 +167,8 @@ class ExpenseEntryAdapter extends TypeAdapter<ExpenseEntry> {
       ..write(obj.paymentMethod)
       ..writeByte(7)
       ..write(obj.note)
+      ..writeByte(21)
+      ..write(obj.tag)
       ..writeByte(8)
       ..write(obj.source)
       ..writeByte(9)
