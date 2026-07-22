@@ -6,11 +6,10 @@ import '../../core/utils/app_formatters.dart';
 import '../../data/models/expense_category.dart';
 import '../../data/models/expense_entry.dart';
 import '../../data/services/app_controller.dart';
-import '../../data/services/sms_import_service.dart';
 import '../../widgets/empty_state_card.dart';
 import '../../widgets/section_header.dart';
+import 'bank_alert_paste_sheet.dart';
 import '../dashboard/home_shell.dart';
-import 'sms_import_sheet.dart';
 import 'transaction_form_sheet.dart';
 
 enum _TransactionViewMode { regular, bank }
@@ -35,7 +34,6 @@ class TransactionsScreen extends StatefulWidget implements QuickActionHost {
 }
 
 class _TransactionsScreenState extends State<TransactionsScreen> {
-  final SmsImportService _smsImportService = SmsImportService();
   final Set<String> _deletingEntryIds = <String>{};
   EntryType? _filter;
   String? _selectedCategory;
@@ -48,7 +46,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _minAmountController = TextEditingController();
   final TextEditingController _maxAmountController = TextEditingController();
-  bool _isImportingFromSms = false;
   _TransactionViewMode _viewMode = _TransactionViewMode.regular;
   bool _showAdvancedFilters = false;
 
@@ -78,6 +75,27 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   void _onSearchChanged() {
     widget.controller.setLastSearchText(_searchController.text);
     setState(() {});
+  }
+
+  Future<void> _openBankAlertPasteSheet() async {
+    final importedCount = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => BankAlertPasteSheet(controller: widget.controller),
+    );
+
+    if (!mounted || importedCount == null || importedCount <= 0) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Imported $importedCount bank alert${importedCount == 1 ? '' : 's'}.',
+        ),
+      ),
+    );
   }
 
   Future<void> _resetFilters() async {
@@ -295,25 +313,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       runSpacing: 12,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        FilledButton.tonalIcon(
-                          onPressed: _isImportingFromSms
-                              ? null
-                              : _importFromSms,
-                          icon: _isImportingFromSms
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.sms_rounded),
-                          label: Text(
-                            _isImportingFromSms
-                                ? 'Checking SMS...'
-                                : 'Import from SMS',
-                          ),
-                        ),
                         SizedBox(
                           width: isCompact ? double.infinity : 280,
                           child: TextField(
@@ -329,6 +328,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                       icon: const Icon(Icons.close_rounded),
                                     ),
                             ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: isCompact ? double.infinity : null,
+                          child: OutlinedButton.icon(
+                            onPressed: _openBankAlertPasteSheet,
+                            icon: const Icon(Icons.sms_rounded),
+                            label: const Text('Paste bank alert'),
                           ),
                         ),
                       ],
@@ -1438,80 +1445,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   bool _isSameDate(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
-
-  Future<void> _importFromSms() async {
-    setState(() => _isImportingFromSms = true);
-    final messenger = ScaffoldMessenger.of(context);
-    final session = await _smsImportService.prepareImport(
-      existingEntries: widget.controller.entries,
-      categories: widget.controller.categories,
-    );
-    if (!mounted) {
-      return;
-    }
-    setState(() => _isImportingFromSms = false);
-
-    switch (session.status) {
-      case SmsImportStatus.unsupported:
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('SMS import is currently available on Android only.'),
-          ),
-        );
-        return;
-      case SmsImportStatus.permissionDenied:
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text(
-              'SMS permission was denied. Allow SMS access to import alerts.',
-            ),
-          ),
-        );
-        return;
-      case SmsImportStatus.failed:
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              session.errorMessage ?? 'Unable to read SMS messages right now.',
-            ),
-          ),
-        );
-        return;
-      case SmsImportStatus.ready:
-        if (session.candidates.isEmpty) {
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text(
-                session.duplicateCount > 0
-                    ? 'No new SMS transactions found. ${session.duplicateCount} duplicates were skipped.'
-                    : 'No debit or credit SMS alerts were found in the selected window.',
-              ),
-            ),
-          );
-          return;
-        }
-    }
-
-    final importedCount = await showModalBottomSheet<int>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) =>
-          SmsImportSheet(controller: widget.controller, session: session),
-    );
-
-    if (!mounted || importedCount == null || importedCount == 0) {
-      return;
-    }
-
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          'Imported $importedCount transaction${importedCount == 1 ? '' : 's'} from SMS.',
-        ),
-      ),
-    );
   }
 
   Future<bool> _confirmEntryDelete(ExpenseEntry entry) async {

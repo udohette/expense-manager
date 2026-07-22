@@ -1,6 +1,3 @@
-import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
-
 import '../models/expense_category.dart';
 import '../models/expense_entry.dart';
 
@@ -71,134 +68,6 @@ class SmsImportCandidate {
 }
 
 class SmsImportService {
-  static const MethodChannel _channel = MethodChannel(
-    'com.eintelix.expensetracker/sms_import',
-  );
-  static const EventChannel _eventChannel = EventChannel(
-    'com.eintelix.expensetracker/sms_import_events',
-  );
-
-  Future<bool> hasSmsPermission() async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
-      return false;
-    }
-
-    try {
-      final granted = await _channel.invokeMethod<bool>('hasSmsPermission');
-      return granted ?? false;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<bool> requestSmsPermission() async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
-      return false;
-    }
-
-    try {
-      final granted = await _channel.invokeMethod<bool>('requestSmsPermission');
-      return granted ?? false;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<SmsImportSession> prepareImport({
-    required List<ExpenseEntry> existingEntries,
-    required List<ExpenseCategory> categories,
-    int limit = 200,
-    Duration lookback = const Duration(days: 30),
-  }) async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
-      return const SmsImportSession(status: SmsImportStatus.unsupported);
-    }
-
-    try {
-      final rawItems = await _channel
-          .invokeListMethod<dynamic>('getSmsMessages', <String, dynamic>{
-            'sinceEpochMs': DateTime.now()
-                .subtract(lookback)
-                .millisecondsSinceEpoch,
-            'limit': limit,
-          });
-
-      final seenExternalIds = <String>{};
-      final candidates = <SmsImportCandidate>[];
-      var duplicateCount = 0;
-
-      for (final item in rawItems ?? const <dynamic>[]) {
-        if (item is! Map) {
-          continue;
-        }
-        final candidate = _parseCandidate(
-          Map<String, dynamic>.from(item.cast<dynamic, dynamic>()),
-          categories,
-        );
-        if (candidate == null) {
-          continue;
-        }
-        final isDuplicate =
-            !seenExternalIds.add(candidate.externalId) ||
-            existingEntries.any(
-              (entry) =>
-                  entry.externalId.isNotEmpty &&
-                  entry.externalId == candidate.externalId,
-            );
-        if (isDuplicate) {
-          duplicateCount += 1;
-          continue;
-        }
-        candidates.add(candidate);
-      }
-
-      candidates.sort((a, b) => b.date.compareTo(a.date));
-      return SmsImportSession(
-        status: SmsImportStatus.ready,
-        candidates: candidates,
-        duplicateCount: duplicateCount,
-      );
-    } on PlatformException catch (error) {
-      if (error.code == 'permission_denied') {
-        return const SmsImportSession(status: SmsImportStatus.permissionDenied);
-      }
-      if (error.code == 'unsupported_platform') {
-        return const SmsImportSession(status: SmsImportStatus.unsupported);
-      }
-      return SmsImportSession(
-        status: SmsImportStatus.failed,
-        errorMessage: error.message,
-      );
-    } catch (error) {
-      return SmsImportSession(
-        status: SmsImportStatus.failed,
-        errorMessage: error.toString(),
-      );
-    }
-  }
-
-  Stream<SmsImportCandidate> watchIncomingSms() {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
-      return const Stream<SmsImportCandidate>.empty();
-    }
-
-    return _eventChannel
-        .receiveBroadcastStream()
-        .map((event) {
-          if (event is! Map) {
-            throw const FormatException('Unexpected SMS event payload');
-          }
-          final candidate = parseRawMessage(
-            Map<String, dynamic>.from(event.cast<dynamic, dynamic>()),
-          );
-          if (candidate == null) {
-            throw const FormatException('Ignored non-bank SMS event');
-          }
-          return candidate;
-        })
-        .handleError((_) {});
-  }
-
   List<ExpenseEntry> buildEntriesFromCandidates({
     required List<SmsImportCandidate> candidates,
     required List<ExpenseCategory> categories,
@@ -248,6 +117,22 @@ class SmsImportService {
     return _parseCandidate(rawItem, const <ExpenseCategory>[]);
   }
 
+  SmsImportCandidate? parsePastedMessage(
+    String message, {
+    String sender = '',
+    DateTime? date,
+  }) {
+    final trimmed = message.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    return _parseCandidate({
+      'body': trimmed,
+      'address': sender.trim(),
+      'date': (date ?? DateTime.now()).millisecondsSinceEpoch,
+    }, const <ExpenseCategory>[]);
+  }
+
   SmsImportCandidate? _parseCandidate(
     Map<String, dynamic> rawItem,
     List<ExpenseCategory> _,
@@ -269,10 +154,7 @@ class SmsImportService {
     }
 
     final sender = (rawItem['address'] as String? ?? '').trim();
-    final bankName = _extractInstitutionName(sender, body);
-    if (bankName.isEmpty) {
-      return null;
-    }
+    final bankName = _resolveInstitutionName(sender, body);
     final timestamp = rawItem['date'] is int
         ? rawItem['date'] as int
         : int.tryParse('${rawItem['date']}') ?? 0;
@@ -298,7 +180,7 @@ class SmsImportService {
       amount: amount,
       date: date,
       type: type,
-      paymentMethod: bankName.isNotEmpty ? bankName : 'SMS Import',
+      paymentMethod: bankName,
       note: note,
       rawMessage: body,
       merchantOrSender: description,
@@ -463,6 +345,17 @@ class SmsImportService {
     if (normalized.contains('stanbic')) return 'Stanbic IBTC';
     if (normalized.isEmpty) return '';
     return value.trim();
+  }
+
+  String _resolveInstitutionName(String sender, String body) {
+    final detected = _extractInstitutionName(sender, body);
+    if (detected.isNotEmpty) {
+      return detected;
+    }
+    if (sender.trim().isNotEmpty) {
+      return sender.trim();
+    }
+    return 'Bank SMS';
   }
 
   String _extractDescription(String message, EntryType type) {

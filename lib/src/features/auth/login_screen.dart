@@ -6,14 +6,18 @@ import '../../core/theme/app_colors.dart';
 import '../../data/services/app_controller.dart';
 import '../../widgets/branded_logo.dart';
 import '../dashboard/home_shell.dart';
-import '../onboarding/onboarding_screen.dart';
 import 'auth_visuals.dart';
 import 'password_reset_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({required this.controller, super.key});
+  const LoginScreen({
+    required this.controller,
+    this.startInSignUp = false,
+    super.key,
+  });
 
   final AppController controller;
+  final bool startInSignUp;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -34,6 +38,7 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void initState() {
     super.initState();
+    _isSignUp = widget.startInSignUp;
     _ambientController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 18),
@@ -81,9 +86,14 @@ class _LoginScreenState extends State<LoginScreen>
       return;
     }
 
-    final next = widget.controller.onboardingComplete
-        ? HomeShell(controller: widget.controller)
-        : OnboardingScreen(controller: widget.controller);
+    if (!widget.controller.onboardingComplete) {
+      await widget.controller.setOnboardingComplete();
+      if (!mounted) {
+        return;
+      }
+    }
+
+    final next = HomeShell(controller: widget.controller);
     await Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => next),
       (route) => false,
@@ -233,38 +243,7 @@ class _LoginScreenState extends State<LoginScreen>
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Center(
-                                  child: Container(
-                                    width: double.infinity,
-                                    constraints: const BoxConstraints(
-                                      maxWidth: 360,
-                                      minHeight: 92,
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 28,
-                                      vertical: 22,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.92,
-                                      ),
-                                      borderRadius: BorderRadius.circular(28),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: AppColors.primary.withValues(
-                                            alpha: 0.08,
-                                          ),
-                                          blurRadius: 24,
-                                          offset: const Offset(0, 12),
-                                        ),
-                                      ],
-                                    ),
-                                    child: const FittedBox(
-                                      fit: BoxFit.contain,
-                                      child: BrandedLogo(height: 54),
-                                    ),
-                                  ),
-                                ),
+                                const BrandedLogo(height: 25),
                                 const SizedBox(height: 18),
                                 Container(
                                   padding: const EdgeInsets.all(18),
@@ -324,9 +303,7 @@ class _LoginScreenState extends State<LoginScreen>
                                   decoration: BoxDecoration(
                                     color: AppColors.background,
                                     borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: AppColors.border,
-                                    ),
+                                    border: Border.all(color: AppColors.border),
                                   ),
                                   child: Row(
                                     children: [
@@ -388,7 +365,9 @@ class _LoginScreenState extends State<LoginScreen>
                                 ),
                                 const SizedBox(height: 22),
                                 Text(
-                                  _isSignUp ? 'Account details' : 'Account access',
+                                  _isSignUp
+                                      ? 'Account details'
+                                      : 'Account access',
                                   style: theme.textTheme.titleLarge?.copyWith(
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -464,8 +443,7 @@ class _LoginScreenState extends State<LoginScreen>
                                         TextFormField(
                                           controller:
                                               _confirmPasswordController,
-                                          obscureText:
-                                              _obscureConfirmPassword,
+                                          obscureText: _obscureConfirmPassword,
                                           decoration: InputDecoration(
                                             labelText: 'Confirm password',
                                             prefixIcon: const Icon(
@@ -482,8 +460,7 @@ class _LoginScreenState extends State<LoginScreen>
                                                 _obscureConfirmPassword
                                                     ? Icons
                                                           .visibility_off_rounded
-                                                    : Icons
-                                                          .visibility_rounded,
+                                                    : Icons.visibility_rounded,
                                               ),
                                             ),
                                           ),

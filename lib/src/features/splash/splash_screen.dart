@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../data/services/app_controller.dart';
+import '../../widgets/branded_logo.dart';
 import '../auth/login_screen.dart';
 import '../auth/password_reset_screen.dart';
 import '../dashboard/home_shell.dart';
@@ -43,6 +44,8 @@ class _SplashScreenState extends State<SplashScreen> {
         : widget.controller.isCloudSyncEnabled &&
               !widget.controller.authController.isSignedIn
         ? LoginScreen(controller: widget.controller)
+        : widget.controller.authController.isSignedIn
+        ? HomeShell(controller: widget.controller)
         : widget.controller.onboardingComplete
         ? HomeShell(controller: widget.controller)
         : OnboardingScreen(controller: widget.controller);
@@ -62,54 +65,26 @@ class _SplashScreenState extends State<SplashScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.primaryDark,
-              AppColors.primary,
-              Color(0xFF43669F),
-            ],
-          ),
-        ),
+        decoration: const BoxDecoration(color: Colors.white),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(28),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.12),
-                      blurRadius: 30,
-                      offset: const Offset(0, 14),
-                    ),
-                  ],
-                ),
-                child: Image.asset(
-                  'assets/images/splash.png',
-                  height: 140,
-                  fit: BoxFit.contain,
-                ),
-              ),
+              const BrandedLogo(height: 120),
               const SizedBox(height: 28),
               Text(
                 'Expense Tracker',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Eintelix Innovations Limited',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.8),
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
               ),
             ],
           ),

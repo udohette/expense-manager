@@ -1,11 +1,8 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../data/services/app_controller.dart';
 import '../bills/bills_screen.dart';
-import '../../data/services/sms_import_service.dart';
 import '../budgets/budgets_screen.dart';
 import '../debts/debts_screen.dart';
 import '../goals/goals_screen.dart';
@@ -24,161 +21,34 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
-  final SmsImportService _smsImportService = SmsImportService();
-  Timer? _smsAutoSyncTimer;
-  StreamSubscription<SmsImportCandidate>? _incomingSmsSubscription;
-  bool _isAutoImportRunning = false;
   int _index = 0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _startSmsAutoSync();
-    unawaited(_ensureSmsPermissionPrompt());
-    unawaited(_startIncomingSmsListener());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _smsAutoSyncTimer?.cancel();
-    _incomingSmsSubscription?.cancel();
     super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _startSmsAutoSync(runImmediately: true);
-      unawaited(_startIncomingSmsListener());
-    } else if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached ||
-        state == AppLifecycleState.inactive) {
-      _smsAutoSyncTimer?.cancel();
-      _incomingSmsSubscription?.cancel();
-    }
-  }
-
-  void _startSmsAutoSync({bool runImmediately = true}) {
-    _smsAutoSyncTimer?.cancel();
-    if (runImmediately) {
-      unawaited(_autoImportSmsTransactions());
-    }
-    _smsAutoSyncTimer = Timer.periodic(
-      const Duration(seconds: 20),
-      (_) => unawaited(_autoImportSmsTransactions()),
-    );
-  }
-
-  Future<void> _ensureSmsPermissionPrompt() async {
-    final hasPermission = await _smsImportService.hasSmsPermission();
-    if (hasPermission || !mounted) {
-      return;
-    }
-
-    final granted = await _smsImportService.requestSmsPermission();
-    if (!mounted) {
-      return;
-    }
-
-    if (granted) {
-      _startSmsAutoSync(runImmediately: true);
-      unawaited(_startIncomingSmsListener());
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('SMS access enabled. Importing bank alerts now.'),
-        ),
-      );
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'SMS access was not granted. You can still allow it later from Import from SMS.',
-        ),
-      ),
-    );
-  }
-
-  Future<void> _autoImportSmsTransactions() async {
-    if (_isAutoImportRunning) {
-      return;
-    }
-    _isAutoImportRunning = true;
-    try {
-      final hasPermission = await _smsImportService.hasSmsPermission();
-      if (!hasPermission || !mounted) {
-        return;
-      }
-
-      final session = await _smsImportService.prepareImport(
-        existingEntries: widget.controller.entries,
-        categories: widget.controller.categories,
-      );
-      if (session.status != SmsImportStatus.ready ||
-          session.candidates.isEmpty) {
-        return;
-      }
-
-      final candidates = _smsImportService.filterNewCandidates(
-        candidates: session.candidates,
-        existingEntries: widget.controller.entries,
-      );
-      final entries = _smsImportService.buildEntriesFromCandidates(
-        candidates: candidates,
-        categories: widget.controller.categories,
-      );
-      if (entries.isEmpty) {
-        return;
-      }
-
-      await widget.controller.addEntries(entries);
-    } finally {
-      _isAutoImportRunning = false;
-    }
-  }
-
-  Future<void> _startIncomingSmsListener() async {
-    await _incomingSmsSubscription?.cancel();
-    final hasPermission = await _smsImportService.hasSmsPermission();
-    if (!hasPermission || !mounted) {
-      return;
-    }
-
-    _incomingSmsSubscription = _smsImportService.watchIncomingSms().listen((
-      candidate,
-    ) async {
-      if (_isAutoImportRunning) {
-        return;
-      }
-      final candidates = _smsImportService.filterNewCandidates(
-        candidates: [candidate],
-        existingEntries: widget.controller.entries,
-      );
-      if (candidates.isEmpty) {
-        return;
-      }
-      final entries = _smsImportService.buildEntriesFromCandidates(
-        candidates: candidates,
-        categories: widget.controller.categories,
-      );
-      if (entries.isEmpty) {
-        return;
-      }
-      await widget.controller.addEntries(entries);
-    }, onError: (_) {});
   }
 
   Future<void> _handleEntriesDestinationTap(BuildContext context) async {
     final navigator = Navigator.of(context);
     final selection = await showModalBottomSheet<_EntriesDestination>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            8,
+            20,
+            24 + MediaQuery.of(context).viewInsets.bottom,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -274,7 +144,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         selectedIndex: _index,
         onDestinationSelected: (value) {
           if (value == 1) {
-            unawaited(_handleEntriesDestinationTap(context));
+            _handleEntriesDestinationTap(context);
             return;
           }
           setState(() => _index = value);

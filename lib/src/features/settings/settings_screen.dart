@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../data/services/app_controller.dart';
+import '../../widgets/branded_logo.dart';
 import '../../widgets/section_header.dart';
+import '../auth/login_screen.dart';
 import '../bills/bills_screen.dart';
 import '../categories/categories_screen.dart';
 import '../splash/splash_screen.dart';
@@ -40,6 +42,18 @@ class SettingsScreen extends StatelessWidget {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => SplashScreen(controller: controller)),
       (route) => false,
+    );
+  }
+
+  Future<void> _openAuthFlow(
+    BuildContext context, {
+    bool startInSignUp = false,
+  }) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            LoginScreen(controller: controller, startInSignUp: startInSignUp),
+      ),
     );
   }
 
@@ -161,13 +175,7 @@ class SettingsScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Center(
-                      child: Image.asset(
-                        'assets/images/splash.png',
-                        height: 132,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
+                    const Center(child: BrandedLogo(height: 70)),
                     const SizedBox(height: 18),
                     Text(
                       'Eintelix Innovations Limited',
@@ -178,8 +186,8 @@ class SettingsScreen extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       controller.isCloudSyncEnabled
-                          ? 'This build uses Supabase for login and cross-device sync, while Hive remains the on-device cache.'
-                          : 'This release is still local-only. Add Supabase config to enable sign-in and cloud sync.',
+                          ? 'Your account details and finance records stay private to you. Data is stored securely, used only to keep your account available across your devices, and you can sign out or delete your data at any time.'
+                          : 'Your records stay on this device unless you choose to sign in. When cloud sync is enabled, your account data is used only to back up and sync your information across your devices.',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: AppColors.textSecondary,
                         height: 1.5,
@@ -206,6 +214,33 @@ class SettingsScreen extends StatelessWidget {
                           ),
                         ],
                       ),
+                    ] else ...[
+                      const SizedBox(height: 18),
+                      Text(
+                        'You are currently using the app without an account. Sign in or create one to enable cloud sync and cross-device backup.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textSecondary,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          FilledButton.icon(
+                            onPressed: () => _openAuthFlow(context),
+                            icon: const Icon(Icons.login_rounded),
+                            label: const Text('Sign in'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () =>
+                                _openAuthFlow(context, startInSignUp: true),
+                            icon: const Icon(Icons.person_add_alt_1_rounded),
+                            label: const Text('Create account'),
+                          ),
+                        ],
+                      ),
                     ],
                   ],
                 ),
@@ -223,13 +258,12 @@ class SettingsScreen extends StatelessWidget {
                         controller.authController.currentUserEmail ??
                             'Signed out',
                       ),
-                      trailing: Chip(
-                        label: Text(
-                          controller.authController.isSignedIn
-                              ? 'Connected'
-                              : 'Not signed in',
-                        ),
-                      ),
+                      trailing: controller.authController.isSignedIn
+                          ? const Chip(label: Text('Connected'))
+                          : FilledButton.tonal(
+                              onPressed: () => _openAuthFlow(context),
+                              child: const Text('Sign in'),
+                            ),
                     ),
                     const Divider(height: 1),
                     ListTile(
@@ -403,29 +437,6 @@ class SettingsScreen extends StatelessWidget {
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => BillsScreen(controller: controller),
-                        ),
-                      );
-                    },
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.cleaning_services_rounded),
-                    title: const Text('Re-run SMS cleanup'),
-                    subtitle: const Text(
-                      'Remove old duplicate or malformed bank SMS imports',
-                    ),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () async {
-                      final messenger = ScaffoldMessenger.of(context);
-                      final deletedCount = await controller
-                          .rerunSmsImportCleanup();
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            deletedCount == 0
-                                ? 'No duplicate SMS imports were found.'
-                                : 'Removed $deletedCount duplicate SMS import${deletedCount == 1 ? '' : 's'}.',
-                          ),
                         ),
                       );
                     },

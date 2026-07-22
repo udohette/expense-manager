@@ -4,7 +4,6 @@ import '../../core/theme/app_colors.dart';
 import '../../data/services/app_controller.dart';
 import '../../widgets/branded_logo.dart';
 import '../dashboard/home_shell.dart';
-import '../onboarding/onboarding_screen.dart';
 import 'auth_visuals.dart';
 
 class PasswordResetScreen extends StatefulWidget {
@@ -53,9 +52,14 @@ class _PasswordResetScreenState extends State<PasswordResetScreen>
       return;
     }
 
-    final next = widget.controller.onboardingComplete
-        ? HomeShell(controller: widget.controller)
-        : OnboardingScreen(controller: widget.controller);
+    if (!widget.controller.onboardingComplete) {
+      await widget.controller.setOnboardingComplete();
+      if (!mounted) {
+        return;
+      }
+    }
+
+    final next = HomeShell(controller: widget.controller);
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => next),
       (route) => false,
@@ -154,8 +158,9 @@ class _PasswordResetScreenState extends State<PasswordResetScreen>
                                         ),
                                         decoration: BoxDecoration(
                                           color: Colors.white,
-                                          borderRadius:
-                                              BorderRadius.circular(20),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
                                           boxShadow: [
                                             BoxShadow(
                                               color: Colors.black.withValues(
@@ -253,8 +258,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen>
                                       ),
                                       const SizedBox(height: 16),
                                       TextFormField(
-                                        controller:
-                                            _confirmPasswordController,
+                                        controller: _confirmPasswordController,
                                         obscureText: _obscureConfirmPassword,
                                         decoration: InputDecoration(
                                           labelText: 'Confirm new password',
