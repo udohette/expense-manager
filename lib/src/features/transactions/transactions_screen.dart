@@ -61,10 +61,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       _searchController.text = lastSearch;
     }
     _searchController.addListener(_onSearchChanged);
+    widget.controller.addListener(_onControllerChanged);
   }
 
   @override
   void dispose() {
+    widget.controller.removeListener(_onControllerChanged);
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _minAmountController.dispose();
@@ -75,6 +77,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   void _onSearchChanged() {
     widget.controller.setLastSearchText(_searchController.text);
     setState(() {});
+  }
+
+  void _onControllerChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _openBankAlertPasteSheet() async {

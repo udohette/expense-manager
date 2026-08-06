@@ -5,9 +5,14 @@ import '../data/services/app_controller.dart';
 import '../features/splash/splash_screen.dart';
 
 class ExpenseTrackerApp extends StatelessWidget {
-  const ExpenseTrackerApp({required this.controller, super.key});
+  const ExpenseTrackerApp({
+    required this.controller,
+    required this.initialization,
+    super.key,
+  });
 
   final AppController controller;
+  final Future<void> initialization;
 
   @override
   Widget build(BuildContext context) {
@@ -15,7 +20,10 @@ class ExpenseTrackerApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Eintelix Expense Tracker',
       theme: AppTheme.lightTheme,
-      home: SplashScreen(controller: controller),
+      home: SplashScreen(
+        controller: controller,
+        initialization: initialization,
+      ),
     );
   }
 }

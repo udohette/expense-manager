@@ -55,7 +55,11 @@ Future<void> main() async {
     authController: authController,
     syncService: syncService,
   );
-  await controller.initialize();
+  final initialization = controller.initialize();
 
-  runApp(ExpenseTrackerApp(controller: controller));
+  // Render the Flutter splash while local data finishes loading instead of
+  // leaving users on the native launch screen during startup work.
+  runApp(
+    ExpenseTrackerApp(controller: controller, initialization: initialization),
+  );
 }

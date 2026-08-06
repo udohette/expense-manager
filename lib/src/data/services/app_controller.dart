@@ -59,6 +59,8 @@ class AppController extends ChangeNotifier {
   DateTime? _lastSyncAt;
   String? _syncErrorMessage;
   Timer? _realtimeRefreshDebounce;
+  Timer? _localSyncDebounce;
+  bool _localSyncQueued = false;
   final List<StreamSubscription<BoxEvent>> _subscriptions = [];
 
   List<ExpenseCategory> get categories => List.unmodifiable(_categories);
@@ -96,15 +98,17 @@ class AppController extends ChangeNotifier {
     _currencyCode =
         _storage.settingsBox.get(currencyKey, defaultValue: 'NGN') as String;
 
+    // This can reset a previous user's local cache. Complete it before the
+    // first screen is allowed to accept writes; otherwise a just-imported
+    // bank alert can be erased by the background startup sync.
+    if (_syncService.isSignedIn) {
+      await _prepareLocalCacheForSignedInUser();
+    }
+
     await _seedDefaults(includeDemoData: !_syncService.isConfigured);
     await _runSmsImportCleanupIfNeeded();
     _loadAll();
     await _materializeRecurringEntries();
-
-    if (_syncService.isSignedIn) {
-      await syncFromCloudOnLaunch();
-      await _ensureRealtimeSubscription();
-    }
 
     authController.addListener(_onAuthStateChanged);
 
@@ -114,7 +118,12 @@ class AppController extends ChangeNotifier {
     _subscriptions.add(
       _storage.entriesBox.watch().listen((event) {
         _handleBoxMutation();
-        if (!_isMaterializingRecurringEntries) {
+        // A pasted bank alert is a normal entry. Re-checking every recurring
+        // template after each normal write grows noticeably slower as history
+        // accumulates, while only template writes can create new occurrences.
+        if (!_isMaterializingRecurringEntries &&
+            event.value is ExpenseEntry &&
+            (event.value as ExpenseEntry).isRecurringTemplate) {
           unawaited(_materializeRecurringEntries());
         }
       }),
@@ -134,6 +143,18 @@ class AppController extends ChangeNotifier {
     _subscriptions.add(
       _storage.walletsBox.watch().listen((event) => _handleBoxMutation()),
     );
+
+    // Cached Hive data is sufficient to enter the app. Fetching every remote
+    // collection can take seconds on a slow connection, so it must not hold
+    // the splash screen hostage.
+    if (_syncService.isSignedIn) {
+      unawaited(_syncCloudAfterLocalInitialization());
+    }
+  }
+
+  Future<void> _syncCloudAfterLocalInitialization() async {
+    await syncFromCloudOnLaunch();
+    await _ensureRealtimeSubscription();
   }
 
   void _handleBoxMutation() {
@@ -1094,13 +1115,26 @@ class AppController extends ChangeNotifier {
 
   Future<void> addEntry(ExpenseEntry entry) async {
     await _storage.entriesBox.add(entry);
-    await _materializeRecurringEntries();
+    if (entry.isRecurringTemplate && entry.hasRecurrence) {
+      await _materializeRecurringEntries();
+    }
     await _pushLocalChanges();
   }
 
   Future<void> addEntries(Iterable<ExpenseEntry> entries) async {
-    await _storage.entriesBox.addAll(entries);
-    await _materializeRecurringEntries();
+    final entriesToAdd = entries.toList(growable: false);
+    if (entriesToAdd.isEmpty) {
+      return;
+    }
+    await _storage.entriesBox.addAll(entriesToAdd);
+    // Hive watch events are delivered asynchronously. Update the in-memory
+    // list now so an import is visible before the bottom sheet closes.
+    _loadAll();
+    if (entriesToAdd.any(
+      (entry) => entry.isRecurringTemplate && entry.hasRecurrence,
+    )) {
+      await _materializeRecurringEntries();
+    }
     await _pushLocalChanges();
   }
 
@@ -1458,6 +1492,28 @@ class AppController extends ChangeNotifier {
     if (!_syncService.isSignedIn) {
       return;
     }
+
+    // Local Hive writes are already durable and the box watcher updates the UI
+    // immediately. Do not make a tap wait for a full remote snapshot (which
+    // currently reads and reconciles every collection). Coalescing also turns
+    // several quick edits/imports into one cloud sync.
+    _localSyncQueued = true;
+    _localSyncDebounce?.cancel();
+    _localSyncDebounce = Timer(
+      const Duration(milliseconds: 500),
+      _flushQueuedLocalChanges,
+    );
+  }
+
+  Future<void> _flushQueuedLocalChanges() async {
+    if (!_localSyncQueued || !_syncService.isSignedIn) {
+      return;
+    }
+    if (_syncInProgress) {
+      return;
+    }
+
+    _localSyncQueued = false;
     await _runSync(
       () => _syncService.pushLocalSnapshot(
         storage: _storage,
@@ -1508,6 +1564,13 @@ class AppController extends ChangeNotifier {
     } finally {
       _suppressReactiveReloads = false;
       _syncInProgress = false;
+      if (_localSyncQueued && _syncService.isSignedIn) {
+        _localSyncDebounce?.cancel();
+        _localSyncDebounce = Timer(
+          const Duration(milliseconds: 500),
+          _flushQueuedLocalChanges,
+        );
+      }
       if (_pendingRealtimeRefresh) {
         _pendingRealtimeRefresh = false;
         unawaited(refreshFromCloud());
@@ -1992,6 +2055,7 @@ class AppController extends ChangeNotifier {
   void dispose() {
     authController.removeListener(_onAuthStateChanged);
     _realtimeRefreshDebounce?.cancel();
+    _localSyncDebounce?.cancel();
     unawaited(_syncService.stopRealtimeSubscription());
     for (final subscription in _subscriptions) {
       subscription.cancel();
