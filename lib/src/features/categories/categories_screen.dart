@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/icon_catalog.dart';
 import '../../data/models/expense_category.dart';
 import '../../data/services/app_controller.dart';
 import '../../widgets/empty_state_card.dart';
@@ -126,14 +127,7 @@ class _CategoryFormSheet extends StatefulWidget {
 
 class _CategoryFormSheetState extends State<_CategoryFormSheet> {
   final TextEditingController _nameController = TextEditingController();
-  final List<IconData> _icons = const [
-    Icons.shopping_bag_rounded,
-    Icons.attach_money_rounded,
-    Icons.school_rounded,
-    Icons.flight_takeoff_rounded,
-    Icons.storefront_rounded,
-    Icons.card_giftcard_rounded,
-  ];
+  final List<IconData> _icons = IconCatalog.selectableCategoryIcons;
   final List<Color> _colors = const [
     AppColors.primary,
     AppColors.success,

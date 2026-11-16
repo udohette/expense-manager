@@ -13,6 +13,15 @@ class AppEnvironment {
   static bool get hasSupabase =>
       supabaseUrl.isNotEmpty && supabasePublishableKey.isNotEmpty;
 
+  static String get passwordResetRedirectTo {
+    if (!kIsWeb) {
+      return 'com.eintelix.expensetracker://login-callback?mode=recovery';
+    }
+    return Uri.parse(
+      Uri.base.origin,
+    ).replace(queryParameters: const {'mode': 'recovery'}).toString();
+  }
+
   static String? get authRedirectTo {
     if (kIsWeb) {
       return Uri.base.origin;

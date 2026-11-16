@@ -5,6 +5,7 @@ import '../../data/services/app_controller.dart';
 import '../../widgets/branded_logo.dart';
 import '../../widgets/section_header.dart';
 import '../auth/login_screen.dart';
+import '../legal/privacy_screen.dart';
 import '../bills/bills_screen.dart';
 import '../categories/categories_screen.dart';
 import '../splash/splash_screen.dart';
@@ -169,6 +170,20 @@ class SettingsScreen extends StatelessWidget {
                   : 'Adjust local preferences while the app remains Hive-backed',
             ),
             const SizedBox(height: 20),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.privacy_tip_outlined),
+                title: const Text('Privacy & your data'),
+                subtitle: const Text(
+                  'Privacy policy, support, and deletion requests',
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PrivacyScreen()),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(20),

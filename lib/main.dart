@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'src/core/config/app_environment.dart';
@@ -18,10 +19,12 @@ import 'src/data/services/hive_storage_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  final launchUri = Uri.base;
   if (AppEnvironment.hasSupabase) {
     await Supabase.initialize(
       url: AppEnvironment.supabaseUrl,
       publishableKey: AppEnvironment.supabasePublishableKey,
+      authOptions: const FlutterAuthClientOptions(detectSessionInUri: false),
     );
   }
 
@@ -49,6 +52,9 @@ Future<void> main() async {
       : null;
   final authController = AuthController(client: supabaseClient);
   await authController.initialize();
+  if (kIsWeb) {
+    await authController.handleWebCallback(launchUri);
+  }
   final syncService = DataSyncService(client: supabaseClient);
   final controller = AppController(
     storage,

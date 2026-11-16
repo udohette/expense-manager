@@ -1078,14 +1078,18 @@ class AppController extends ChangeNotifier {
   }
 
   DateTime? getLastSelectedStartDate() {
-    final millis = _storage.settingsBox.get(lastSelectedStartDateKey) as int?;
-    if (millis == null) return null;
-    return DateTime.fromMillisecondsSinceEpoch(millis);
+    return _readSettingsDate(lastSelectedStartDateKey);
   }
 
   DateTime? getLastSelectedEndDate() {
-    final millis = _storage.settingsBox.get(lastSelectedEndDateKey) as int?;
-    if (millis == null) return null;
+    return _readSettingsDate(lastSelectedEndDateKey);
+  }
+
+  DateTime? _readSettingsDate(String key) {
+    final millis = _storage.settingsBox.get(key) as int?;
+    if (millis == null) {
+      return null;
+    }
     return DateTime.fromMillisecondsSinceEpoch(millis);
   }
 

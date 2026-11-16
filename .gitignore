@@ -43,3 +43,24 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local credentials and signing material (keep public examples/certificate).
+.env*
+!.env*.example
+**/key.properties
+**/key.properties.*
+!**/key.properties.example
+/android/keystore/
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.key
+*.pem
+!store/google-play/upload-certificate.pem
+*.mobileprovision
+**/credentials.json
+**/service-account*.json
+**/service_account*.json
+**/firebase-adminsdk*.json
+.vercel/

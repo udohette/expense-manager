@@ -1,0 +1,44 @@
+APP NAME
+Eintelix Expense Tracker
+
+SHORT DESCRIPTION
+Track expenses, plan budgets, manage debts and build savings goals.
+
+FULL DESCRIPTION
+Bring your everyday finances into one clear view with Eintelix Expense Tracker.
+
+RECORD INCOME AND EXPENSES
+Add transactions, organise them by category, and find records using search and filters. Keep useful details such as payment methods, notes and tags with each entry.
+
+PLAN YOUR BUDGET
+Set weekly or monthly spending limits. See how much you have spent against each budget and spot categories that need attention.
+
+BUILD SAVINGS GOALS
+Create goals, set target amounts and dates, and record contributions as you make progress.
+
+KEEP DEBTS ORGANISED
+Track money you owe and money owed to you. Keep repayment details and due dates together with your records.
+
+MANAGE WALLETS AND BILLS
+Organise cash, bank, savings and business records in separate wallets. Track transfers and plan recurring bills in one place. Wallets record your finances; they do not hold or transfer real money.
+
+TURN BANK ALERTS INTO RECORDS
+Choose to paste bank-alert text and review the transactions created from it. The app does not automatically read your SMS inbox or connect to your bank account.
+
+SYNC YOUR RECORDS
+Sign in with email or Google to sync records across your devices when connected. Review your privacy choices, delete data or request account deletion from Settings.
+
+Eintelix Expense Tracker is a record-keeping and budgeting tool. It does not provide loans, banking, investments or financial advice.
+
+Support: etteinnovations@gmail.com
+Privacy: https://expense-manager-ei-team2.vercel.app/privacy/
+Account deletion: https://expense-manager-ei-team2.vercel.app/delete-account/
+
+CATEGORY
+Finance
+
+SUPPORT EMAIL
+etteinnovations@gmail.com
+
+WEBSITE
+https://expense-manager-ei-team2.vercel.app/

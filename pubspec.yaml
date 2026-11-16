@@ -1,7 +1,7 @@
 name: eintelix_expense_tracker
 description: "Expense manager and tracker for Eintelix Innovations Limited."
 publish_to: 'none'
-version: 0.1.0
+version: 1.0.0+1
 
 environment:
   sdk: ^3.10.7
@@ -11,10 +11,11 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   fl_chart: ^1.0.0
-  flutter_contacts: ^1.1.9+2
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   intl: ^0.20.2
+  app_links: ^6.4.1
+  url_launcher: ^6.3.2
   supabase_flutter: ^2.10.3
 
 dev_dependencies:

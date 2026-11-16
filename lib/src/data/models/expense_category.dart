@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 
+import '../../core/utils/icon_catalog.dart';
+
 @HiveType(typeId: 0)
 enum EntryType {
   @HiveField(0)
@@ -38,7 +40,7 @@ class ExpenseCategory extends HiveObject {
   @HiveField(5)
   final bool isDefault;
 
-  IconData get icon => IconData(iconCodePoint, fontFamily: 'MaterialIcons');
+  IconData get icon => IconCatalog.resolveCategoryIcon(iconCodePoint);
   Color get color => Color(colorValue);
 
   ExpenseCategory copyWith({

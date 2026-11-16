@@ -1,0 +1,72 @@
+{
+  "graphics/app-icon-512.png": {
+    "width": 512,
+    "height": 512,
+    "mode": "RGB"
+  },
+  "graphics/feature-graphic-1024x500.png": {
+    "width": 1024,
+    "height": 500,
+    "mode": "RGB"
+  },
+  "raw/01-overview.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGBA"
+  },
+  "raw/02-transactions.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGBA"
+  },
+  "raw/03-budgets.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGBA"
+  },
+  "raw/04-goals.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGBA"
+  },
+  "raw/05-debts.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGBA"
+  },
+  "raw/06-wallets.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGBA"
+  },
+  "screenshots/01-overview.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGB"
+  },
+  "screenshots/02-transactions.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGB"
+  },
+  "screenshots/03-budgets.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGB"
+  },
+  "screenshots/04-goals.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGB"
+  },
+  "screenshots/05-debts.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGB"
+  },
+  "screenshots/06-wallets.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGB"
+  }
+}

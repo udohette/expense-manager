@@ -35,8 +35,11 @@ If those `dart-define` values are omitted, the app stays in local-only Hive mode
 ## Password reset
 
 - The sign-in screen now sends Supabase password reset emails.
-- For Flutter web, the app uses the current site origin as the recovery redirect.
-- In Supabase Auth settings, set your Site URL and allowed redirect URLs to the URL where this app runs, so the recovery link can return to the app and open the password reset screen.
+- Web requests return to the current origin with `?mode=recovery`. Mobile requests return to the installed app using `com.eintelix.expensetracker://login-callback?mode=recovery` and open only its password-reset screen.
+- In Supabase Auth URL Configuration, allow `com.eintelix.expensetracker://login-callback?mode=recovery` and the web recovery URL for your deployment. Keep the Site URL set to the hosted app URL.
+- Mobile recovery links require the app to be installed on the device where the email link is opened. Desktop browsers cannot open this mobile scheme without an installed handler.
+- Recovery email requests use a separate implicit-flow client so opening the link in another browser or device does not require the requesting app's PKCE verifier. Google sign-in retains its existing flow.
+- After changing the redirect configuration or rebuilding the app, request a fresh reset email; previously sent links retain their original redirect.
 
 ## Google sign-in
 
@@ -102,3 +105,14 @@ If you use password reset on web, make sure Supabase Auth URL configuration incl
 - `Site URL`
 - `Redirect URLs`
 # expense-manager
+
+## Google Play release
+
+The first Android release is `1.0.0+1` (`com.eintelix.expensetracker`), targeting API 36.
+See [the release pack](store/google-play/README.md) for signing backup instructions,
+store assets, listing copy, Data Safety notes and the device acceptance checklist.
+Preview the [six screenshots and feature graphic](store/google-play/preview.html).
+The upload keystore and its passwords are private local files excluded from Git.
+
+Public policy pages live in `web/privacy/` and `web/delete-account/`; deploy them
+with the web app before submitting their URLs to Play Console.

@@ -1,0 +1,6 @@
+Initial release of Eintelix Expense Tracker.
+• Track income and expenses.
+• Plan budgets and savings goals.
+• Organise debts, bills and wallets.
+• Sync records with your account.
+• Manage privacy and account deletion in Settings.

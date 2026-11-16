@@ -1,0 +1,207 @@
+# GitLab CI/CD Pipeline for Eintelix Expense Tracker
+# Flutter project with web deployment on Vercel
+
+stages:
+  - analyze
+  - test
+  - build
+  - deploy
+
+variables:
+  # Flutter Docker image with pre-installed Flutter 3.10.7
+  FLUTTER_IMAGE: "cirrusci/flutter:3.10.7"
+  # Cache configuration
+  CACHE_KEY: ${CI_COMMIT_REF_SLUG}
+  GIT_DEPTH: 0  # Full history for proper versioning
+
+cache:
+  key: ${CACHE_KEY}
+  paths:
+    - .dart_tool/
+    - pubspec.lock
+    - build/
+
+# ============================================================
+# STAGE 1: CODE ANALYSIS & LINTING
+# ============================================================
+
+analyze:
+  stage: analyze
+  image: $FLUTTER_IMAGE
+  script:
+    - echo "Installing dependencies..."
+    - flutter pub get
+    - echo "Running Flutter analyze..."
+    - flutter analyze
+    - echo "Checking code formatting..."
+    - dart format --set-exit-if-changed lib test
+  artifacts:
+    reports:
+      dotenv: analyze.env
+    expire_in: 1 week
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+  only:
+    - merge_requests
+    - main
+    - develop
+  except:
+    - tags
+
+# ============================================================
+# STAGE 2: TESTING
+# ============================================================
+
+test:
+  stage: test
+  image: $FLUTTER_IMAGE
+  script:
+    - echo "Installing dependencies..."
+    - flutter pub get
+    - echo "Running unit tests with coverage..."
+    - flutter test --coverage
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura.xml
+    paths:
+      - coverage/
+      - test_results/
+    expire_in: 30 days
+  coverage: '/lines\s*:\s*(\d+\.\d+)%/'
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+  only:
+    - merge_requests
+    - main
+    - develop
+  except:
+    - tags
+
+# ============================================================
+# STAGE 3: BUILD
+# ============================================================
+
+build:web:
+  stage: build
+  image: $FLUTTER_IMAGE
+  script:
+    - echo "Installing dependencies..."
+    - flutter pub get
+    - echo "Building Flutter Web for production..."
+    - flutter build web --no-tree-shake-icons --release
+    - echo "Web build completed successfully"
+    - ls -lah build/web/
+  artifacts:
+    paths:
+      - build/web/
+    expire_in: 30 days
+    name: "web-build-$CI_COMMIT_SHORT_SHA"
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+  only:
+    - merge_requests
+    - main
+    - develop
+  except:
+    - tags
+
+build:apk:
+  stage: build
+  image: $FLUTTER_IMAGE
+  script:
+    - echo "Installing dependencies..."
+    - flutter pub get
+    - echo "Building Android APK (Release)..."
+    - flutter build apk --release
+    - echo "APK build completed successfully"
+    - ls -lah build/app/outputs/flutter-apk/
+  artifacts:
+    paths:
+      - build/app/outputs/flutter-apk/app-release.apk
+    expire_in: 90 days
+    name: "apk-release-$CI_COMMIT_SHORT_SHA"
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+  only:
+    - main
+    - tags
+  except:
+    - merge_requests
+
+# ============================================================
+# STAGE 4: DEPLOYMENT
+# ============================================================
+
+# Deploy to Vercel (Manual trigger for safety)
+deploy:vercel:
+  stage: deploy
+  image: node:18
+  before_script:
+    - echo "Installing Vercel CLI..."
+    - npm install -g vercel
+  script:
+    - echo "Deploying to Vercel..."
+    - |
+      if [ "$CI_COMMIT_BRANCH" == "main" ]; then
+        echo "Deploying to production (main branch)..."
+        vercel --prod \
+          --token $VERCEL_TOKEN \
+          --confirm
+      else
+        echo "Deploying to preview ($CI_COMMIT_BRANCH branch)..."
+        vercel \
+          --token $VERCEL_TOKEN \
+          --confirm
+      fi
+    - echo "Deployment completed successfully"
+  environment:
+    name: $CI_COMMIT_BRANCH
+    url: https://your-vercel-domain.vercel.app
+    deployment_tier: production
+  only:
+    - main
+    - develop
+  when: manual  # Requires manual approval
+  retry:
+    max: 1
+    when:
+      - script_failure
+
+# ============================================================
+# SCHEDULED JOBS (Optional)
+# ============================================================
+
+# Nightly test run on develop branch
+nightly:test:
+  stage: test
+  image: $FLUTTER_IMAGE
+  script:
+    - flutter pub get
+    - flutter test --coverage
+  only:
+    - schedules
+  variables:
+    SCHEDULE_TYPE: "nightly"
+
+# Weekly dependency update check
+weekly:dependency-check:
+  stage: analyze
+  image: $FLUTTER_IMAGE
+  script:
+    - flutter pub outdated
+    - echo "Checking for outdated dependencies..."
+  only:
+    - schedules
+  variables:
+    SCHEDULE_TYPE: "weekly"
+  allow_failure: true

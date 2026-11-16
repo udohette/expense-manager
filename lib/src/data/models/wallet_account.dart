@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 
+import '../../core/utils/icon_catalog.dart';
+
 enum WalletKind { cash, bank, savings, business, custom }
 
 class WalletAccount extends HiveObject {
@@ -23,7 +25,7 @@ class WalletAccount extends HiveObject {
   final bool isDefault;
 
   Color get color => Color(colorValue);
-  IconData get icon => IconData(iconCodePoint, fontFamily: 'MaterialIcons');
+  IconData get icon => IconCatalog.resolveWalletIcon(iconCodePoint);
 
   WalletAccount copyWith({
     String? id,

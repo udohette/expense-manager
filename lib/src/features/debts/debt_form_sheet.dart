@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_contacts/flutter_contacts.dart';
-import 'package:flutter/services.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/amount_input_formatter.dart';
@@ -27,14 +25,10 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
   late final TextEditingController _installmentAmountController;
   late DebtType _type;
   late DebtStatus _status;
-  late DebtPersonSource _source;
   DateTime? _dueDate;
   DateTime? _nextInstallmentDate;
   RecurrenceFrequency _repaymentFrequency = RecurrenceFrequency.none;
-  String? _contactId;
-  bool _isPickingContact = false;
   bool _isSubmitting = false;
-  List<Contact> _cachedContacts = const [];
 
   @override
   void initState() {
@@ -58,11 +52,9 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
     );
     _type = debt?.type ?? DebtType.owedToMe;
     _status = debt?.status ?? DebtStatus.active;
-    _source = debt?.personSource ?? DebtPersonSource.manual;
     _dueDate = debt?.dueDate;
     _nextInstallmentDate = debt?.nextInstallmentDate;
     _repaymentFrequency = debt?.repaymentFrequency ?? RecurrenceFrequency.none;
-    _contactId = debt?.contactId;
   }
 
   @override
@@ -111,55 +103,16 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
               },
             ),
             const SizedBox(height: 12),
-            SegmentedButton<DebtPersonSource>(
-              segments: const [
-                ButtonSegment(
-                  value: DebtPersonSource.manual,
-                  label: Text('Manual'),
-                  icon: Icon(Icons.edit_note_rounded),
-                ),
-                ButtonSegment(
-                  value: DebtPersonSource.contacts,
-                  label: Text('Contacts'),
-                  icon: Icon(Icons.contacts_rounded),
-                ),
-              ],
-              selected: {_source},
-              onSelectionChanged: (selection) async {
-                final next = selection.first;
-                setState(() => _source = next);
-                if (next == DebtPersonSource.contacts) {
-                  await _pickContact();
-                }
-              },
-            ),
-            const SizedBox(height: 12),
             TextField(
               controller: _nameController,
-              readOnly: _source == DebtPersonSource.contacts,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: 'Person or business name',
-                suffixIcon: _source == DebtPersonSource.contacts
-                    ? IconButton(
-                        onPressed: _isPickingContact ? null : _pickContact,
-                        icon: _isPickingContact
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.person_search_rounded),
-                      )
-                    : null,
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _phoneController,
               keyboardType: TextInputType.phone,
-              readOnly: _source == DebtPersonSource.contacts,
               decoration: const InputDecoration(labelText: 'Phone number'),
             ),
             const SizedBox(height: 12),
@@ -358,72 +311,6 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
     }
   }
 
-  Future<void> _pickContact() async {
-    setState(() => _isPickingContact = true);
-    try {
-      final granted = await FlutterContacts.requestPermission(readonly: true);
-      if (!granted) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Contacts permission not granted. You can still enter the debtor manually.',
-              ),
-            ),
-          );
-          setState(() => _source = DebtPersonSource.manual);
-        }
-        return;
-      }
-
-      if (_cachedContacts.isEmpty) {
-        _cachedContacts = await FlutterContacts.getContacts(
-          withProperties: true,
-          sorted: true,
-        );
-      }
-
-      if (!mounted) {
-        return;
-      }
-
-      final selected = await showModalBottomSheet<Contact>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (_) => _ContactPickerSheet(contacts: _cachedContacts),
-      );
-
-      if (selected == null) {
-        return;
-      }
-
-      setState(() {
-        _source = DebtPersonSource.contacts;
-        _contactId = selected.id;
-        _nameController.text = selected.displayName;
-        _phoneController.text = selected.phones.isNotEmpty
-            ? selected.phones.first.number
-            : '';
-      });
-    } on MissingPluginException {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Contacts integration is not loaded in this app instance yet. Stop the app completely and run it again.',
-            ),
-          ),
-        );
-        setState(() => _source = DebtPersonSource.manual);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isPickingContact = false);
-      }
-    }
-  }
-
   Future<void> _submit() async {
     if (_isSubmitting) {
       return;
@@ -463,13 +350,13 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
         amount: amount,
         type: _type,
         status: _status,
-        personSource: _source,
+        personSource: DebtPersonSource.manual,
         createdAt: widget.debt?.createdAt ?? DateTime.now(),
         phoneNumber: _phoneController.text.trim().isEmpty
             ? null
             : _phoneController.text.trim(),
         note: _noteController.text.trim(),
-        contactId: _contactId,
+        contactId: null,
         dueDate: _dueDate,
         amountPaid: amountPaid,
         installmentAmount: installmentAmount,
@@ -497,108 +384,5 @@ class _DebtFormSheetState extends State<DebtFormSheet> {
         setState(() => _isSubmitting = false);
       }
     }
-  }
-}
-
-class _ContactPickerSheet extends StatefulWidget {
-  const _ContactPickerSheet({required this.contacts});
-
-  final List<Contact> contacts;
-
-  @override
-  State<_ContactPickerSheet> createState() => _ContactPickerSheetState();
-}
-
-class _ContactPickerSheetState extends State<_ContactPickerSheet> {
-  final TextEditingController _searchController = TextEditingController();
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final query = _searchController.text.trim().toLowerCase();
-    final filteredContacts = widget.contacts.where((contact) {
-      final phone = contact.phones.isNotEmpty
-          ? contact.phones.first.number
-          : '';
-      return query.isEmpty ||
-          contact.displayName.toLowerCase().contains(query) ||
-          phone.toLowerCase().contains(query);
-    }).toList();
-
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 12,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-        ),
-        child: SizedBox(
-          height: 520,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Pick a contact',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _searchController,
-                onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  hintText: 'Search name or phone number',
-                  prefixIcon: Icon(Icons.search_rounded),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Expanded(
-                child: filteredContacts.isEmpty
-                    ? const Center(child: Text('No matching contacts found.'))
-                    : ListView.separated(
-                        itemCount: filteredContacts.length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          final contact = filteredContacts[index];
-                          final phone = contact.phones.isNotEmpty
-                              ? contact.phones.first.number
-                              : 'No phone number';
-                          return Card(
-                            child: ListTile(
-                              onTap: () => Navigator.of(context).pop(contact),
-                              leading: CircleAvatar(
-                                backgroundColor: AppColors.primary.withValues(
-                                  alpha: 0.12,
-                                ),
-                                child: Text(
-                                  contact.displayName.isEmpty
-                                      ? '?'
-                                      : contact.displayName[0].toUpperCase(),
-                                  style: const TextStyle(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                              title: Text(contact.displayName),
-                              subtitle: Text(phone),
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }

@@ -1,0 +1,188 @@
+{
+  "package": "com.eintelix.expensetracker",
+  "version_name": "1.0.0",
+  "version_code": "1",
+  "target_sdk": "36",
+  "min_sdk": "24",
+  "permissions": [
+    "android.permission.INTERNET",
+    "com.eintelix.expensetracker.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+  ],
+  "allow_backup": "false",
+  "cleartext": "false",
+  "bundle_bytes": 45173466,
+  "bundle_sha256": "a9ebd687c73465cb11331017733ba8769e3d0022b1477edcb2148600c380d2d3",
+  "bundle_signature_verified": true,
+  "bundletool_validation": "App Bundle information\n------------\nFeature modules:\n\tFeature module: base\n\t\tFile: assets/flutter_assets/AssetManifest.bin\n\t\tFile: assets/flutter_assets/FontManifest.json\n\t\tFile: assets/flutter_assets/NOTICES.Z\n\t\tFile: assets/flutter_assets/NativeAssetsManifest.json\n\t\tFile: assets/flutter_assets/assets/images/eintelix_logo.png\n\t\tFile: assets/flutter_assets/assets/images/splash.png\n\t\tFile: assets/flutter_assets/fonts/MaterialIcons-Regular.otf\n\t\tFile: assets/flutter_assets/packages/cupertino_icons/assets/CupertinoIcons.ttf\n\t\tFile: assets/flutter_assets/shaders/ink_sparkle.frag\n\t\tFile: assets/flutter_assets/shaders/stretch_effect.frag\n\t\tFile: dex/classes.dex\n\t\tFile: lib/arm64-v8a/libapp.so\n\t\tFile: lib/arm64-v8a/libdartjni.so\n\t\tFile: lib/arm64-v8a/libdatastore_shared_counter.so\n\t\tFile: lib/arm64-v8a/libflutter.so\n\t\tFile: lib/armeabi-v7a/libapp.so\n\t\tFile: lib/armeabi-v7a/libdartjni.so\n\t\tFile: lib/armeabi-v7a/libdatastore_shared_counter.so\n\t\tFile: lib/armeabi-v7a/libflutter.so\n\t\tFile: lib/x86_64/libapp.so\n\t\tFile: lib/x86_64/libdartjni.so\n\t\tFile: lib/x86_64/libdatastore_shared_counter.so\n\t\tFile: lib/x86_64/libflutter.so\n\t\tFile: res/anim/abc_tooltip_enter.xml\n\t\tFile: res/anim/abc_tooltip_exit.xml\n\t\tFile: res/anim/btn_checkbox_to_checked_box_inner_merged_animation.xml\n\t\tFile: res/anim/btn_checkbox_to_checked_box_outer_merged_animation.xml\n\t\tFile: res/anim/btn_checkbox_to_checked_icon_null_animation.xml\n\t\tFile: res/anim/btn_checkbox_to_unchecked_box_inner_merged_animation.xml\n\t\tFile: res/anim/btn_checkbox_to_unchecked_check_path_merged_animation.xml\n\t\tFile: res/anim/btn_checkbox_to_unchecked_icon_null_animation.xml\n\t\tFile: res/anim/btn_radio_to_off_mtrl_dot_group_animation.xml\n\t\tFile: res/anim/btn_radio_to_off_mtrl_ring_outer_animation.xml\n\t\tFile: res/anim/btn_radio_to_off_mtrl_ring_outer_path_animation.xml\n\t\tFile: res/anim/btn_radio_to_on_mtrl_dot_group_animation.xml\n\t\tFile: res/anim/btn_radio_to_on_mtrl_ring_outer_animation.xml\n\t\tFile: res/anim/btn_radio_to_on_mtrl_ring_outer_path_animation.xml\n\t\tFile: res/color-v23/abc_tint_btn_checkable.xml\n\t\tFile: res/color-v23/abc_tint_default.xml\n\t\tFile: res/color-v23/abc_tint_edittext.xml\n\t\tFile: res/color-v23/abc_tint_seek_thumb.xml\n\t\tFile: res/color-v23/abc_tint_spinner.xml\n\t\tFile: res/color-v23/abc_tint_switch_track.xml\n\t\tFile: res/drawable-hdpi-v4/abc_ab_share_pack_mtrl_alpha.9.png\n\t\tFile: res/drawable-hdpi-v4/abc_btn_check_to_on_mtrl_000.png\n\t\tFile: res/drawable-hdpi-v4/abc_btn_check_to_on_mtrl_015.png\n\t\tFile: res/drawable-hdpi-v4/abc_btn_radio_to_on_mtrl_000.png\n\t\tFile: res/drawable-hdpi-v4/abc_btn_radio_to_on_mtrl_015.png\n\t\tFile: res/drawable-hdpi-v4/abc_btn_switch_to_on_mtrl_00001.9.png\n\t\tFile: res/drawable-hdpi-v4/abc_btn_switch_to_on_mtrl_00012.9.png\n\t\tFile: res/drawable-hdpi-v4/abc_cab_background_top_mtrl_alpha.9.png\n\t\tFile: res/drawable-hdpi-v4/abc_ic_commit_search_api_mtrl_alpha.png\n\t\tFile: res/drawable-hdpi-v4/abc_ic_menu_copy_mtrl_am_alpha.png\n\t\tFile: res/drawable-hdpi-v4/abc_ic_menu_cut_mtrl_alpha.png\n\t\tFile: res/drawable-hdpi-v4/abc_ic_menu_paste_mtrl_am_alpha.png\n\t\tFile: res/drawable-hdpi-v4/abc_ic_menu_selectall_mtrl_alpha.png\n\t\tFile: res/drawable-hdpi-v4/abc_ic_menu_share_mtrl_alpha.png\n\t\tFile: res/drawable-hdpi-v4/abc_ic_star_black_16dp.png\n\t\tFile: res/drawable-hdpi-v4/abc_ic_star_black_36dp.png\n\t\tFile: res/drawable-hdpi-v4/abc_ic_star_black_48dp.png\n\t\tFile: res/drawable-hdpi-v4/abc_ic_star_half_black_16dp.png\n\t\tFile: res/drawable-hdpi-v4/abc_ic_star_half_black_36dp.png\n\t\tFile: res/drawable-hdpi-v4/abc_ic_star_half_black_48dp.png\n\t\tFile: res/drawable-hdpi-v4/abc_list_divider_mtrl_alpha.9.png\n\t\tFile: res/drawable-hdpi-v4/abc_menu_hardkey_panel_mtrl_mult.9.png\n\t\tFile: res/drawable-hdpi-v4/abc_popup_background_mtrl_mult.9.png\n\t\tFile: res/drawable-hdpi-v4/abc_scrubber_control_off_mtrl_alpha.png\n\t\tFile: res/drawable-hdpi-v4/abc_scrubber_control_to_pressed_mtrl_000.png\n\t\tFile: res/drawable-hdpi-v4/abc_scrubber_control_to_pressed_mtrl_005.png\n\t\tFile: res/drawable-hdpi-v4/abc_scrubber_primary_mtrl_alpha.9.png\n\t\tFile: res/drawable-hdpi-v4/abc_scrubber_track_mtrl_alpha.9.png\n\t\tFile: res/drawable-hdpi-v4/abc_spinner_mtrl_am_alpha.9.png\n\t\tFile: res/drawable-hdpi-v4/abc_switch_track_mtrl_alpha.9.png\n\t\tFile: res/drawable-hdpi-v4/abc_tab_indicator_mtrl_alpha.9.png\n\t\tFile: res/drawable-hdpi-v4/abc_text_select_handle_left_mtrl_dark.png\n\t\tFile: res/drawable-hdpi-v4/abc_text_select_handle_left_mtrl_light.png\n\t\tFile: res/drawable-hdpi-v4/abc_text_select_handle_middle_mtrl_dark.png\n\t\tFile: res/drawable-hdpi-v4/abc_text_select_handle_middle_mtrl_light.png\n\t\tFile: res/drawable-hdpi-v4/abc_text_select_handle_right_mtrl_dark.png\n\t\tFile: res/drawable-hdpi-v4/abc_text_select_handle_right_mtrl_light.png\n\t\tFile: res/drawable-hdpi-v4/abc_textfield_activated_mtrl_alpha.9.png\n\t\tFile: res/drawable-hdpi-v4/abc_textfield_default_mtrl_alpha.9.png\n\t\tFile: res/drawable-hdpi-v4/abc_textfield_search_activated_mtrl_alpha.9.png\n\t\tFile: res/drawable-hdpi-v4/abc_textfield_search_default_mtrl_alpha.9.png\n\t\tFile: res/drawable-ldrtl-hdpi-v17/abc_ic_menu_copy_mtrl_am_alpha.png\n\t\tFile: res/drawable-ldrtl-hdpi-v17/abc_ic_menu_cut_mtrl_alpha.png\n\t\tFile: res/drawable-ldrtl-hdpi-v17/abc_spinner_mtrl_am_alpha.9.png\n\t\tFile: res/drawable-ldrtl-mdpi-v17/abc_ic_menu_copy_mtrl_am_alpha.png\n\t\tFile: res/drawable-ldrtl-mdpi-v17/abc_ic_menu_cut_mtrl_alpha.png\n\t\tFile: res/drawable-ldrtl-mdpi-v17/abc_spinner_mtrl_am_alpha.9.png\n\t\tFile: res/drawable-ldrtl-xhdpi-v17/abc_ic_menu_copy_mtrl_am_alpha.png\n\t\tFile: res/drawable-ldrtl-xhdpi-v17/abc_ic_menu_cut_mtrl_alpha.png\n\t\tFile: res/drawable-ldrtl-xhdpi-v17/abc_spinner_mtrl_am_alpha.9.png\n\t\tFile: res/drawable-ldrtl-xxhdpi-v17/abc_ic_menu_copy_mtrl_am_alpha.png\n\t\tFile: res/drawable-ldrtl-xxhdpi-v17/abc_ic_menu_cut_mtrl_alpha.png\n\t\tFile: res/drawable-ldrtl-xxhdpi-v17/abc_spinner_mtrl_am_alpha.9.png\n\t\tFile: res/drawable-ldrtl-xxxhdpi-v17/abc_ic_menu_copy_mtrl_am_alpha.png\n\t\tFile: res/drawable-ldrtl-xxxhdpi-v17/abc_ic_menu_cut_mtrl_alpha.png\n\t\tFile: res/drawable-ldrtl-xxxhdpi-v17/abc_spinner_mtrl_am_alpha.9.png\n\t\tFile: res/drawable-mdpi-v4/abc_ab_share_pack_mtrl_alpha.9.png\n\t\tFile: res/drawable-mdpi-v4/abc_btn_check_to_on_mtrl_000.png\n\t\tFile: res/drawable-mdpi-v4/abc_btn_check_to_on_mtrl_015.png\n\t\tFile: res/drawable-mdpi-v4/abc_btn_radio_to_on_mtrl_000.png\n\t\tFile: res/drawable-mdpi-v4/abc_btn_radio_to_on_mtrl_015.png\n\t\tFile: res/drawable-mdpi-v4/abc_btn_switch_to_on_mtrl_00001.9.png\n\t\tFile: res/drawable-mdpi-v4/abc_btn_switch_to_on_mtrl_00012.9.png\n\t\tFile: res/drawable-mdpi-v4/abc_cab_background_top_mtrl_alpha.9.png\n\t\tFile: res/drawable-mdpi-v4/abc_ic_commit_search_api_mtrl_alpha.png\n\t\tFile: res/drawable-mdpi-v4/abc_ic_menu_copy_mtrl_am_alpha.png\n\t\tFile: res/drawable-mdpi-v4/abc_ic_menu_cut_mtrl_alpha.png\n\t\tFile: res/drawable-mdpi-v4/abc_ic_menu_paste_mtrl_am_alpha.png\n\t\tFile: res/drawable-mdpi-v4/abc_ic_menu_selectall_mtrl_alpha.png\n\t\tFile: res/drawable-mdpi-v4/abc_ic_menu_share_mtrl_alpha.png\n\t\tFile: res/drawable-mdpi-v4/abc_ic_star_black_16dp.png\n\t\tFile: res/drawable-mdpi-v4/abc_ic_star_black_36dp.png\n\t\tFile: res/drawable-mdpi-v4/abc_ic_star_black_48dp.png\n\t\tFile: res/drawable-mdpi-v4/abc_ic_star_half_black_16dp.png\n\t\tFile: res/drawable-mdpi-v4/abc_ic_star_half_black_36dp.png\n\t\tFile: res/drawable-mdpi-v4/abc_ic_star_half_black_48dp.png\n\t\tFile: res/drawable-mdpi-v4/abc_list_divider_mtrl_alpha.9.png\n\t\tFile: res/drawable-mdpi-v4/abc_menu_hardkey_panel_mtrl_mult.9.png\n\t\tFile: res/drawable-mdpi-v4/abc_popup_background_mtrl_mult.9.png\n\t\tFile: res/drawable-mdpi-v4/abc_scrubber_control_off_mtrl_alpha.png\n\t\tFile: res/drawable-mdpi-v4/abc_scrubber_control_to_pressed_mtrl_000.png\n\t\tFile: res/drawable-mdpi-v4/abc_scrubber_control_to_pressed_mtrl_005.png\n\t\tFile: res/drawable-mdpi-v4/abc_scrubber_primary_mtrl_alpha.9.png\n\t\tFile: res/drawable-mdpi-v4/abc_scrubber_track_mtrl_alpha.9.png\n\t\tFile: res/drawable-mdpi-v4/abc_spinner_mtrl_am_alpha.9.png\n\t\tFile: res/drawable-mdpi-v4/abc_switch_track_mtrl_alpha.9.png\n\t\tFile: res/drawable-mdpi-v4/abc_tab_indicator_mtrl_alpha.9.png\n\t\tFile: res/drawable-mdpi-v4/abc_text_select_handle_left_mtrl_dark.png\n\t\tFile: res/drawable-mdpi-v4/abc_text_select_handle_left_mtrl_light.png\n\t\tFile: res/drawable-mdpi-v4/abc_text_select_handle_middle_mtrl_dark.png\n\t\tFile: res/drawable-mdpi-v4/abc_text_select_handle_middle_mtrl_light.png\n\t\tFile: res/drawable-mdpi-v4/abc_text_select_handle_right_mtrl_dark.png\n\t\tFile: res/drawable-mdpi-v4/abc_text_select_handle_right_mtrl_light.png\n\t\tFile: res/drawable-mdpi-v4/abc_textfield_activated_mtrl_alpha.9.png\n\t\tFile: res/drawable-mdpi-v4/abc_textfield_default_mtrl_alpha.9.png\n\t\tFile: res/drawable-mdpi-v4/abc_textfield_search_activated_mtrl_alpha.9.png\n\t\tFile: res/drawable-mdpi-v4/abc_textfield_search_default_mtrl_alpha.9.png\n\t\tFile: res/drawable-v21/abc_btn_colored_material.xml\n\t\tFile: res/drawable-v21/abc_dialog_material_background.xml\n\t\tFile: res/drawable-v21/abc_edit_text_material.xml\n\t\tFile: res/drawable-v21/abc_list_divider_material.xml\n\t\tFile: res/drawable-v21/launch_background.xml\n\t\tFile: res/drawable-watch-v20/abc_dialog_material_background.xml\n\t\tFile: res/drawable-xhdpi-v4/abc_ab_share_pack_mtrl_alpha.9.png\n\t\tFile: res/drawable-xhdpi-v4/abc_btn_check_to_on_mtrl_000.png\n\t\tFile: res/drawable-xhdpi-v4/abc_btn_check_to_on_mtrl_015.png\n\t\tFile: res/drawable-xhdpi-v4/abc_btn_radio_to_on_mtrl_000.png\n\t\tFile: res/drawable-xhdpi-v4/abc_btn_radio_to_on_mtrl_015.png\n\t\tFile: res/drawable-xhdpi-v4/abc_btn_switch_to_on_mtrl_00001.9.png\n\t\tFile: res/drawable-xhdpi-v4/abc_btn_switch_to_on_mtrl_00012.9.png\n\t\tFile: res/drawable-xhdpi-v4/abc_cab_background_top_mtrl_alpha.9.png\n\t\tFile: res/drawable-xhdpi-v4/abc_ic_commit_search_api_mtrl_alpha.png\n\t\tFile: res/drawable-xhdpi-v4/abc_ic_menu_copy_mtrl_am_alpha.png\n\t\tFile: res/drawable-xhdpi-v4/abc_ic_menu_cut_mtrl_alpha.png\n\t\tFile: res/drawable-xhdpi-v4/abc_ic_menu_paste_mtrl_am_alpha.png\n\t\tFile: res/drawable-xhdpi-v4/abc_ic_menu_selectall_mtrl_alpha.png\n\t\tFile: res/drawable-xhdpi-v4/abc_ic_menu_share_mtrl_alpha.png\n\t\tFile: res/drawable-xhdpi-v4/abc_ic_star_black_16dp.png\n\t\tFile: res/drawable-xhdpi-v4/abc_ic_star_black_36dp.png\n\t\tFile: res/drawable-xhdpi-v4/abc_ic_star_black_48dp.png\n\t\tFile: res/drawable-xhdpi-v4/abc_ic_star_half_black_16dp.png\n\t\tFile: res/drawable-xhdpi-v4/abc_ic_star_half_black_36dp.png\n\t\tFile: res/drawable-xhdpi-v4/abc_ic_star_half_black_48dp.png\n\t\tFile: res/drawable-xhdpi-v4/abc_list_divider_mtrl_alpha.9.png\n\t\tFile: res/drawable-xhdpi-v4/abc_menu_hardkey_panel_mtrl_mult.9.png\n\t\tFile: res/drawable-xhdpi-v4/abc_popup_background_mtrl_mult.9.png\n\t\tFile: res/drawable-xhdpi-v4/abc_scrubber_control_off_mtrl_alpha.png\n\t\tFile: res/drawable-xhdpi-v4/abc_scrubber_control_to_pressed_mtrl_000.png\n\t\tFile: res/drawable-xhdpi-v4/abc_scrubber_control_to_pressed_mtrl_005.png\n\t\tFile: res/drawable-xhdpi-v4/abc_scrubber_primary_mtrl_alpha.9.png\n\t\tFile: res/drawable-xhdpi-v4/abc_scrubber_track_mtrl_alpha.9.png\n\t\tFile: res/drawable-xhdpi-v4/abc_spinner_mtrl_am_alpha.9.png\n\t\tFile: res/drawable-xhdpi-v4/abc_switch_track_mtrl_alpha.9.png\n\t\tFile: res/drawable-xhdpi-v4/abc_tab_indicator_mtrl_alpha.9.png\n\t\tFile: res/drawable-xhdpi-v4/abc_text_select_handle_left_mtrl_dark.png\n\t\tFile: res/drawable-xhdpi-v4/abc_text_select_handle_left_mtrl_light.png\n\t\tFile: res/drawable-xhdpi-v4/abc_text_select_handle_middle_mtrl_dark.png\n\t\tFile: res/drawable-xhdpi-v4/abc_text_select_handle_middle_mtrl_light.png\n\t\tFile: res/drawable-xhdpi-v4/abc_text_select_handle_right_mtrl_dark.png\n\t\tFile: res/drawable-xhdpi-v4/abc_text_select_handle_right_mtrl_light.png\n\t\tFile: res/drawable-xhdpi-v4/abc_textfield_activated_mtrl_alpha.9.png\n\t\tFile: res/drawable-xhdpi-v4/abc_textfield_default_mtrl_alpha.9.png\n\t\tFile: res/drawable-xhdpi-v4/abc_textfield_search_activated_mtrl_alpha.9.png\n\t\tFile: res/drawable-xhdpi-v4/abc_textfield_search_default_mtrl_alpha.9.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_ab_share_pack_mtrl_alpha.9.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_btn_check_to_on_mtrl_000.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_btn_check_to_on_mtrl_015.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_btn_radio_to_on_mtrl_000.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_btn_radio_to_on_mtrl_015.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_btn_switch_to_on_mtrl_00001.9.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_btn_switch_to_on_mtrl_00012.9.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_cab_background_top_mtrl_alpha.9.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_ic_commit_search_api_mtrl_alpha.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_ic_menu_copy_mtrl_am_alpha.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_ic_menu_cut_mtrl_alpha.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_ic_menu_paste_mtrl_am_alpha.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_ic_menu_selectall_mtrl_alpha.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_ic_menu_share_mtrl_alpha.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_ic_star_black_16dp.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_ic_star_black_36dp.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_ic_star_black_48dp.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_ic_star_half_black_16dp.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_ic_star_half_black_36dp.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_ic_star_half_black_48dp.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_list_divider_mtrl_alpha.9.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_menu_hardkey_panel_mtrl_mult.9.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_popup_background_mtrl_mult.9.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_scrubber_control_off_mtrl_alpha.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_scrubber_control_to_pressed_mtrl_000.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_scrubber_control_to_pressed_mtrl_005.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_scrubber_primary_mtrl_alpha.9.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_scrubber_track_mtrl_alpha.9.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_spinner_mtrl_am_alpha.9.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_switch_track_mtrl_alpha.9.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_tab_indicator_mtrl_alpha.9.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_text_select_handle_left_mtrl_dark.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_text_select_handle_left_mtrl_light.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_text_select_handle_middle_mtrl_dark.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_text_select_handle_middle_mtrl_light.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_text_select_handle_right_mtrl_dark.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_text_select_handle_right_mtrl_light.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_textfield_activated_mtrl_alpha.9.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_textfield_default_mtrl_alpha.9.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_textfield_search_activated_mtrl_alpha.9.png\n\t\tFile: res/drawable-xxhdpi-v4/abc_textfield_search_default_mtrl_alpha.9.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_btn_check_to_on_mtrl_000.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_btn_check_to_on_mtrl_015.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_btn_radio_to_on_mtrl_000.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_btn_radio_to_on_mtrl_015.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_btn_switch_to_on_mtrl_00001.9.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_btn_switch_to_on_mtrl_00012.9.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_ic_menu_copy_mtrl_am_alpha.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_ic_menu_cut_mtrl_alpha.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_ic_menu_paste_mtrl_am_alpha.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_ic_menu_selectall_mtrl_alpha.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_ic_menu_share_mtrl_alpha.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_ic_star_black_16dp.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_ic_star_black_36dp.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_ic_star_black_48dp.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_ic_star_half_black_16dp.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_ic_star_half_black_36dp.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_ic_star_half_black_48dp.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_scrubber_control_to_pressed_mtrl_000.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_scrubber_control_to_pressed_mtrl_005.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_spinner_mtrl_am_alpha.9.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_switch_track_mtrl_alpha.9.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_tab_indicator_mtrl_alpha.9.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_text_select_handle_left_mtrl_dark.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_text_select_handle_left_mtrl_light.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_text_select_handle_right_mtrl_dark.png\n\t\tFile: res/drawable-xxxhdpi-v4/abc_text_select_handle_right_mtrl_light.png\n\t\tFile: res/drawable/abc_btn_borderless_material.xml\n\t\tFile: res/drawable/abc_btn_check_material.xml\n\t\tFile: res/drawable/abc_btn_check_material_anim.xml\n\t\tFile: res/drawable/abc_btn_default_mtrl_shape.xml\n\t\tFile: res/drawable/abc_btn_radio_material.xml\n\t\tFile: res/drawable/abc_btn_radio_material_anim.xml\n\t\tFile: res/drawable/abc_cab_background_internal_bg.xml\n\t\tFile: res/drawable/abc_cab_background_top_material.xml\n\t\tFile: res/drawable/abc_ratingbar_indicator_material.xml\n\t\tFile: res/drawable/abc_ratingbar_material.xml\n\t\tFile: res/drawable/abc_ratingbar_small_material.xml\n\t\tFile: res/drawable/abc_seekbar_thumb_material.xml\n\t\tFile: res/drawable/abc_seekbar_tick_mark_material.xml\n\t\tFile: res/drawable/abc_seekbar_track_material.xml\n\t\tFile: res/drawable/abc_spinner_textfield_background_material.xml\n\t\tFile: res/drawable/abc_switch_thumb_material.xml\n\t\tFile: res/drawable/abc_tab_indicator_material.xml\n\t\tFile: res/drawable/abc_text_cursor_material.xml\n\t\tFile: res/drawable/abc_textfield_search_material.xml\n\t\tFile: res/drawable/abc_vector_test.xml\n\t\tFile: res/drawable/btn_checkbox_checked_mtrl.xml\n\t\tFile: res/drawable/btn_checkbox_checked_to_unchecked_mtrl_animation.xml\n\t\tFile: res/drawable/btn_checkbox_unchecked_mtrl.xml\n\t\tFile: res/drawable/btn_checkbox_unchecked_to_checked_mtrl_animation.xml\n\t\tFile: res/drawable/btn_radio_off_mtrl.xml\n\t\tFile: res/drawable/btn_radio_off_to_on_mtrl_animation.xml\n\t\tFile: res/drawable/btn_radio_on_mtrl.xml\n\t\tFile: res/drawable/btn_radio_on_to_off_mtrl_animation.xml\n\t\tFile: res/drawable/tooltip_frame_dark.xml\n\t\tFile: res/drawable/tooltip_frame_light.xml\n\t\tFile: res/interpolator/btn_checkbox_checked_mtrl_animation_interpolator_0.xml\n\t\tFile: res/interpolator/btn_checkbox_checked_mtrl_animation_interpolator_1.xml\n\t\tFile: res/interpolator/btn_checkbox_unchecked_mtrl_animation_interpolator_0.xml\n\t\tFile: res/interpolator/btn_checkbox_unchecked_mtrl_animation_interpolator_1.xml\n\t\tFile: res/interpolator/btn_radio_to_off_mtrl_animation_interpolator_0.xml\n\t\tFile: res/interpolator/btn_radio_to_on_mtrl_animation_interpolator_0.xml\n\t\tFile: res/interpolator/fast_out_slow_in.xml\n\t\tFile: res/layout/abc_action_bar_title_item.xml\n\t\tFile: res/layout/abc_action_menu_item_layout.xml\n\t\tFile: res/layout/abc_action_mode_close_item_material.xml\n\t\tFile: res/layout/abc_cascading_menu_item_layout.xml\n\t\tFile: res/layout/abc_list_menu_item_checkbox.xml\n\t\tFile: res/layout/abc_list_menu_item_icon.xml\n\t\tFile: res/layout/abc_list_menu_item_radio.xml\n\t\tFile: res/layout/abc_popup_menu_header_item_layout.xml\n\t\tFile: res/layout/abc_popup_menu_item_layout.xml\n\t\tFile: res/layout/abc_search_dropdown_item_icons_2line.xml\n\t\tFile: res/layout/abc_search_view.xml\n\t\tFile: res/layout/abc_tooltip.xml\n\t\tFile: res/layout/preference.xml\n\t\tFile: res/mipmap-anydpi-v26/ic_launcher.xml\n\t\tFile: res/mipmap-hdpi-v4/ic_launcher.png\n\t\tFile: res/mipmap-hdpi-v4/ic_launcher_foreground.png\n\t\tFile: res/mipmap-mdpi-v4/ic_launcher.png\n\t\tFile: res/mipmap-mdpi-v4/ic_launcher_foreground.png\n\t\tFile: res/mipmap-xhdpi-v4/ic_launcher.png\n\t\tFile: res/mipmap-xhdpi-v4/ic_launcher_foreground.png\n\t\tFile: res/mipmap-xxhdpi-v4/ic_launcher.png\n\t\tFile: res/mipmap-xxhdpi-v4/ic_launcher_foreground.png\n\t\tFile: res/mipmap-xxxhdpi-v4/ic_launcher.png\n\t\tFile: res/mipmap-xxxhdpi-v4/ic_launcher_foreground.png\n\t\tFile: root/DebugProbesKt.bin\n\t\tFile: root/META-INF/androidx.activity_activity-ktx.version\n\t\tFile: root/META-INF/androidx.activity_activity.version\n\t\tFile: root/META-INF/androidx.annotation_annotation-experimental.version\n\t\tFile: root/META-INF/androidx.appcompat_appcompat-resources.version\n\t\tFile: root/META-INF/androidx.appcompat_appcompat.version\n\t\tFile: root/META-INF/androidx.arch.core_core-runtime.version\n\t\tFile: root/META-INF/androidx.asynclayoutinflater_asynclayoutinflater.version\n\t\tFile: root/META-INF/androidx.browser_browser.version\n\t\tFile: root/META-INF/androidx.coordinatorlayout_coordinatorlayout.version\n\t\tFile: root/META-INF/androidx.core_core-ktx.version\n\t\tFile: root/META-INF/androidx.core_core-viewtree.version\n\t\tFile: root/META-INF/androidx.core_core.version\n\t\tFile: root/META-INF/androidx.cursoradapter_cursoradapter.version\n\t\tFile: root/META-INF/androidx.customview_customview.version\n\t\tFile: root/META-INF/androidx.datastore_datastore-core.version\n\t\tFile: root/META-INF/androidx.datastore_datastore-preferences-core.version\n\t\tFile: root/META-INF/androidx.datastore_datastore-preferences.version\n\t\tFile: root/META-INF/androidx.datastore_datastore.version\n\t\tFile: root/META-INF/androidx.documentfile_documentfile.version\n\t\tFile: root/META-INF/androidx.drawerlayout_drawerlayout.version\n\t\tFile: root/META-INF/androidx.fragment_fragment-ktx.version\n\t\tFile: root/META-INF/androidx.fragment_fragment.version\n\t\tFile: root/META-INF/androidx.interpolator_interpolator.version\n\t\tFile: root/META-INF/androidx.legacy_legacy-support-core-ui.version\n\t\tFile: root/META-INF/androidx.legacy_legacy-support-core-utils.version\n\t\tFile: root/META-INF/androidx.lifecycle_lifecycle-livedata-core-ktx.version\n\t\tFile: root/META-INF/androidx.lifecycle_lifecycle-livedata-core.version\n\t\tFile: root/META-INF/androidx.lifecycle_lifecycle-livedata.version\n\t\tFile: root/META-INF/androidx.lifecycle_lifecycle-process.version\n\t\tFile: root/META-INF/androidx.lifecycle_lifecycle-runtime-ktx.version\n\t\tFile: root/META-INF/androidx.lifecycle_lifecycle-runtime.version\n\t\tFile: root/META-INF/androidx.lifecycle_lifecycle-viewmodel-ktx.version\n\t\tFile: root/META-INF/androidx.lifecycle_lifecycle-viewmodel-savedstate.version\n\t\tFile: root/META-INF/androidx.lifecycle_lifecycle-viewmodel.version\n\t\tFile: root/META-INF/androidx.loader_loader.version\n\t\tFile: root/META-INF/androidx.localbroadcastmanager_localbroadcastmanager.version\n\t\tFile: root/META-INF/androidx.preference_preference.version\n\t\tFile: root/META-INF/androidx.print_print.version\n\t\tFile: root/META-INF/androidx.profileinstaller_profileinstaller.version\n\t\tFile: root/META-INF/androidx.recyclerview_recyclerview.version\n\t\tFile: root/META-INF/androidx.savedstate_savedstate-ktx.version\n\t\tFile: root/META-INF/androidx.savedstate_savedstate.version\n\t\tFile: root/META-INF/androidx.slidingpanelayout_slidingpanelayout.version\n\t\tFile: root/META-INF/androidx.startup_startup-runtime.version\n\t\tFile: root/META-INF/androidx.swiperefreshlayout_swiperefreshlayout.version\n\t\tFile: root/META-INF/androidx.tracing_tracing.version\n\t\tFile: root/META-INF/androidx.transition_transition.version\n\t\tFile: root/META-INF/androidx.vectordrawable_vectordrawable-animated.version\n\t\tFile: root/META-INF/androidx.vectordrawable_vectordrawable.version\n\t\tFile: root/META-INF/androidx.versionedparcelable_versionedparcelable.version\n\t\tFile: root/META-INF/androidx.viewpager_viewpager.version\n\t\tFile: root/META-INF/androidx.window.extensions.core_core.version\n\t\tFile: root/META-INF/androidx.window_window-java.version\n\t\tFile: root/META-INF/androidx.window_window.version\n\t\tFile: root/META-INF/androidx/annotation/annotation/LICENSE.txt\n\t\tFile: root/META-INF/com/android/build/gradle/app-metadata.properties\n\t\tFile: root/META-INF/kotlinx_coroutines_android.version\n\t\tFile: root/META-INF/kotlinx_coroutines_core.version\n\t\tFile: root/META-INF/services/L0.a\n\t\tFile: root/META-INF/services/L0.b\n\t\tFile: root/META-INF/version-control-info.textproto\n\t\tFile: root/META-INF/versions/9/OSGI-INF/MANIFEST.MF\n\t\tFile: root/kotlin-tooling-metadata.json\n\t\tFile: root/kotlin/annotation/annotation.kotlin_builtins\n\t\tFile: root/kotlin/collections/collections.kotlin_builtins\n\t\tFile: root/kotlin/concurrent/atomics/atomics.kotlin_builtins\n\t\tFile: root/kotlin/coroutines/coroutines.kotlin_builtins\n\t\tFile: root/kotlin/internal/internal.kotlin_builtins\n\t\tFile: root/kotlin/kotlin.kotlin_builtins\n\t\tFile: root/kotlin/ranges/ranges.kotlin_builtins\n\t\tFile: root/kotlin/reflect/reflect.kotlin_builtins",
+  "bundle_config": {
+    "bundletool": {
+      "version": "1.18.1"
+    },
+    "optimizations": {
+      "splitsConfig": {},
+      "uncompressNativeLibraries": {
+        "enabled": true,
+        "alignment": "PAGE_ALIGNMENT_16K"
+      },
+      "storeArchive": {
+        "enabled": true
+      }
+    },
+    "compression": {
+      "uncompressedGlob": [
+        "**.3[gG]2",
+        "**.3[gG][pP]",
+        "**.3[gG][pP][pP]",
+        "**.3[gG][pP][pP]2",
+        "**.[aA][aA][cC]",
+        "**.[aA][mM][rR]",
+        "**.[aA][wW][bB]",
+        "**.[gG][iI][fF]",
+        "**.[iI][mM][yY]",
+        "**.[jJ][eE][tT]",
+        "**.[jJ][pP][eE][gG]",
+        "**.[jJ][pP][gG]",
+        "**.[mM]4[aA]",
+        "**.[mM]4[vV]",
+        "**.[mM][iI][dD]",
+        "**.[mM][iI][dD][iI]",
+        "**.[mM][kK][vV]",
+        "**.[mM][pP]2",
+        "**.[mM][pP]3",
+        "**.[mM][pP]4",
+        "**.[mM][pP][eE][gG]",
+        "**.[mM][pP][gG]",
+        "**.[oO][gG][gG]",
+        "**.[oO][pP][uU][sS]",
+        "**.[pP][nN][gG]",
+        "**.[rR][tT][tT][tT][lL]",
+        "**.[sS][mM][fF]",
+        "**.[tT][fF][lL][iI][tT][eE]",
+        "**.[wW][aA][vV]",
+        "**.[wW][eE][bB][mM]",
+        "**.[wW][eE][bB][pP]",
+        "**.[wW][mM][aA]",
+        "**.[wW][mM][vV]",
+        "**.[xX][mM][fF]"
+      ]
+    }
+  },
+  "native_libraries": [
+    {
+      "path": "base/lib/arm64-v8a/libapp.so",
+      "elf_class": 64,
+      "load_segment_alignments": [
+        65536,
+        65536,
+        65536
+      ],
+      "checked_16kb": true
+    },
+    {
+      "path": "base/lib/arm64-v8a/libdartjni.so",
+      "elf_class": 64,
+      "load_segment_alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "checked_16kb": true
+    },
+    {
+      "path": "base/lib/arm64-v8a/libdatastore_shared_counter.so",
+      "elf_class": 64,
+      "load_segment_alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "checked_16kb": true
+    },
+    {
+      "path": "base/lib/arm64-v8a/libflutter.so",
+      "elf_class": 64,
+      "load_segment_alignments": [
+        65536,
+        65536,
+        65536
+      ],
+      "checked_16kb": true
+    },
+    {
+      "path": "base/lib/armeabi-v7a/libapp.so",
+      "elf_class": 32,
+      "checked_16kb": false
+    },
+    {
+      "path": "base/lib/armeabi-v7a/libdartjni.so",
+      "elf_class": 32,
+      "checked_16kb": false
+    },
+    {
+      "path": "base/lib/armeabi-v7a/libdatastore_shared_counter.so",
+      "elf_class": 32,
+      "checked_16kb": false
+    },
+    {
+      "path": "base/lib/armeabi-v7a/libflutter.so",
+      "elf_class": 32,
+      "checked_16kb": false
+    },
+    {
+      "path": "base/lib/x86_64/libapp.so",
+      "elf_class": 64,
+      "load_segment_alignments": [
+        65536,
+        65536,
+        65536
+      ],
+      "checked_16kb": true
+    },
+    {
+      "path": "base/lib/x86_64/libdartjni.so",
+      "elf_class": 64,
+      "load_segment_alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "checked_16kb": true
+    },
+    {
+      "path": "base/lib/x86_64/libdatastore_shared_counter.so",
+      "elf_class": 64,
+      "load_segment_alignments": [
+        16384,
+        16384
+      ],
+      "checked_16kb": true
+    },
+    {
+      "path": "base/lib/x86_64/libflutter.so",
+      "elf_class": 64,
+      "load_segment_alignments": [
+        65536,
+        65536,
+        65536
+      ],
+      "checked_16kb": true
+    }
+  ],
+  "universal_apk_signature": "Verifies\nVerified using v1 scheme (JAR signing): false\nVerified using v2 scheme (APK Signature Scheme v2): true\nVerified using v3 scheme (APK Signature Scheme v3): true\nVerified using v3.1 scheme (APK Signature Scheme v3.1): false\nVerified using v4 scheme (APK Signature Scheme v4): false\nVerified for SourceStamp: false\nNumber of signers: 1\nSigner #1 certificate DN: CN=Eintelix Expense Tracker, O=Eintelix Innovations Limited, C=NG\nSigner #1 certificate SHA-256 digest: 9027275c581e1356040f76d9a470b0c0fd49446a5a8303760653701ce31cebed\nSigner #1 certificate SHA-1 digest: 7f2bef7ec94e319efb9f21beab3aa24d1dd49076\nSigner #1 certificate MD5 digest: 1b926a5a6b81db6a5b9605e237cdc9ba\nSigner #1 key algorithm: RSA\nSigner #1 key size (bits): 4096\nSigner #1 public key SHA-256 digest: 3e7dadb88e459310cffff2e90e967533b40a73e50ca5de2c906aae8dda5b670a\nSigner #1 public key SHA-1 digest: cc2309c38a99cc765c206e186bfa125befb7ddc1\nSigner #1 public key MD5 digest: 96dcaf7d8264039fd2f4896127768a4a",
+  "universal_apk_zipalign": "Verification successful",
+  "runtime_smoke_test": {
+    "earlier_signed_candidate": "Installed and cold-launched on isolated Android 16 ARM64 emulator. A token-less recovery deep link cold-launched the native Reset link unavailable screen; returning to sign in was verified using the UI hierarchy.",
+    "earlier_candidate_bundle_sha256": "8ea05a398c79740477770fba81eba90e7d3248b1bcc8b10f8d61c8326974eee2",
+    "final_candidate": "Only adaptive launcher-icon sizing changed after that runtime check. The final bundle and generated APK passed artifact verification. Reinstalling the final APK timed out on the slow emulator; final runtime acceptance remains pending.",
+    "not_verified": [
+      "valid emailed recovery token",
+      "warm native recovery link",
+      "real-device behavior",
+      "live email or Google sign-in",
+      "cloud sync and RLS",
+      "live account/data deletion",
+      "16 KB device runtime",
+      "Play-installed release/pre-launch report"
+    ]
+  }
+}

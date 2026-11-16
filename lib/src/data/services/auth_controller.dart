@@ -1,19 +1,26 @@
 import 'dart:async';
 
+import 'package:app_links/app_links.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../core/config/app_environment.dart';
 
 class AuthController extends ChangeNotifier {
   AuthController({SupabaseClient? client}) : _client = client;
 
   final SupabaseClient? _client;
   StreamSubscription<AuthState>? _subscription;
+  StreamSubscription<Uri>? _linkSubscription;
+  Uri? _lastCallback;
 
   User? _currentUser;
   bool _busy = false;
   String? _errorMessage;
   String? _infoMessage;
   bool _isPasswordRecovery = false;
+  bool _recoveryVerified = false;
 
   bool get isConfigured => _client != null;
   bool get isBusy => _busy;
@@ -24,30 +31,91 @@ class AuthController extends ChangeNotifier {
   String? get currentUserId => _currentUser?.id;
   String? get currentUserEmail => _currentUser?.email;
   bool get isPasswordRecovery => _isPasswordRecovery;
+  bool get canResetPassword => _recoveryVerified && isSignedIn;
 
   Future<void> initialize() async {
     final client = _client;
-    _subscription = client?.auth.onAuthStateChange.listen((data) {
-      _currentUser = data.session?.user ?? client.auth.currentUser;
-      _errorMessage = null;
-      if (data.event == AuthChangeEvent.passwordRecovery) {
-        _isPasswordRecovery = true;
-        _infoMessage = 'Set a new password to finish account recovery.';
-      } else if (data.event == AuthChangeEvent.userUpdated) {
-        _isPasswordRecovery = false;
-      } else if (data.event == AuthChangeEvent.signedOut) {
-        _isPasswordRecovery = false;
-        _infoMessage = null;
-      }
-      notifyListeners();
-    });
+    _subscription = client?.auth.onAuthStateChange.listen(
+      (data) {
+        _currentUser = data.session?.user ?? client.auth.currentUser;
+        _errorMessage = null;
+        if (data.event == AuthChangeEvent.passwordRecovery) {
+          _isPasswordRecovery = true;
+          _recoveryVerified = data.session != null;
+          _infoMessage = 'Set a new password to finish account recovery.';
+        } else if (data.event == AuthChangeEvent.signedOut) {
+          _isPasswordRecovery = false;
+          _infoMessage = null;
+        }
+        notifyListeners();
+      },
+      onError: (Object error) {
+        _errorMessage = error is AuthException
+            ? error.message
+            : 'Could not verify this link.';
+        notifyListeners();
+      },
+    );
     _currentUser = client?.auth.currentUser;
-    if (client != null && kIsWeb) {
-      final isRecoveryLink = _isRecoveryLink(Uri.base);
-      if (isRecoveryLink) {
-        _isPasswordRecovery = true;
-        _infoMessage = 'Set a new password to finish account recovery.';
+    if (!kIsWeb && client != null) {
+      final links = AppLinks();
+      _linkSubscription = links.uriLinkStream.listen(
+        (uri) {
+          unawaited(_handleNativeLink(uri));
+        },
+        onError: (Object error) {
+          _errorMessage =
+              'Could not open the account link. Please request a new email.';
+          notifyListeners();
+        },
+      );
+      final initialLink = await links.getInitialLink();
+      if (initialLink != null) await _handleNativeLink(initialLink);
+    }
+    notifyListeners();
+  }
+
+  Future<void> _handleNativeLink(Uri uri) async {
+    if (uri.scheme != 'com.eintelix.expensetracker' ||
+        uri.host != 'login-callback' ||
+        uri == _lastCallback) {
+      return;
+    }
+    _lastCallback = uri;
+    await handleWebCallback(uri);
+  }
+
+  Future<void> handleWebCallback(Uri uri) async {
+    final recovery = _isRecoveryLink(uri);
+    _isPasswordRecovery = recovery;
+    _recoveryVerified = false;
+    _errorMessage = null;
+    _busy = true;
+    if (recovery) notifyListeners();
+    final fragment = Uri.splitQueryString(
+      uri.fragment.startsWith('/') ? '' : uri.fragment,
+    );
+    final hasCallback =
+        uri.queryParameters.containsKey('code') ||
+        fragment.containsKey('access_token') ||
+        fragment.containsKey('error') ||
+        uri.queryParameters.containsKey('error');
+    if (hasCallback && _client != null) {
+      try {
+        await _client.auth.getSessionFromUrl(uri);
+        _currentUser = _client.auth.currentUser;
+        if (_isPasswordRecovery) _recoveryVerified = isSignedIn;
+      } on AuthException catch (error) {
+        _errorMessage = error.message;
+      } catch (_) {
+        _errorMessage =
+            'This link could not be verified. Request a new reset email.';
       }
+    }
+    _busy = false;
+    if (recovery && !canResetPassword && _errorMessage == null) {
+      _errorMessage =
+          'This reset link is invalid or has expired. Request a new reset email.';
     }
     notifyListeners();
   }
@@ -133,9 +201,26 @@ class AuthController extends ChangeNotifier {
       if (client == null) {
         return;
       }
-      await client.auth.resetPasswordForEmail(email, redirectTo: redirectTo);
+      // Recovery email links must also work in a different browser or device.
+      // A PKCE verifier stored by the requesting app is unavailable there.
+      final recoveryClient = SupabaseClient(
+        AppEnvironment.supabaseUrl,
+        AppEnvironment.supabasePublishableKey,
+        authOptions: const AuthClientOptions(
+          authFlowType: AuthFlowType.implicit,
+          autoRefreshToken: false,
+        ),
+      );
+      try {
+        await recoveryClient.auth.resetPasswordForEmail(
+          email,
+          redirectTo: redirectTo ?? AppEnvironment.passwordResetRedirectTo,
+        );
+      } finally {
+        await recoveryClient.dispose();
+      }
       _infoMessage =
-          'Password reset email sent. Open the recovery link, then return here to set a new password.';
+          'Check your email. The link opens a secure page to choose a new password.';
     });
   }
 
@@ -146,8 +231,7 @@ class AuthController extends ChangeNotifier {
         return;
       }
       await client.auth.updateUser(UserAttributes(password: password));
-      _isPasswordRecovery = false;
-      _infoMessage = 'Password updated. You can continue into the app.';
+      _infoMessage = 'Your password has been updated.';
     });
   }
 
@@ -158,7 +242,9 @@ class AuthController extends ChangeNotifier {
   }
 
   bool _isRecoveryLink(Uri uri) {
-    return uri.queryParameters['mode'] == 'recovery' ||
+    return uri.fragment.startsWith('/reset-password') ||
+        uri.path == '/reset-password' ||
+        uri.queryParameters['mode'] == 'recovery' ||
         uri.queryParameters['type'] == 'recovery' ||
         uri.fragment.contains('type=recovery');
   }
@@ -190,6 +276,7 @@ class AuthController extends ChangeNotifier {
   @override
   void dispose() {
     _subscription?.cancel();
+    _linkSubscription?.cancel();
     super.dispose();
   }
 }

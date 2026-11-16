@@ -158,16 +158,9 @@ class _LoginScreenState extends State<LoginScreen>
       return;
     }
 
-    String? redirectTo;
-    if (kIsWeb) {
-      redirectTo = Uri.parse(
-        Uri.base.origin,
-      ).replace(queryParameters: const {'mode': 'recovery'}).toString();
-    }
-
     await widget.controller.authController.sendPasswordResetEmail(
       email: email,
-      redirectTo: redirectTo,
+      redirectTo: AppEnvironment.passwordResetRedirectTo,
     );
   }
 
