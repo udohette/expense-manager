@@ -111,7 +111,7 @@ If you use password reset on web, make sure Supabase Auth URL configuration incl
 The first Android release is `1.0.0+1` (`com.eintelix.expensetracker`), targeting API 36.
 See [the release pack](store/google-play/README.md) for signing backup instructions,
 store assets, listing copy, Data Safety notes and the device acceptance checklist.
-Preview the [six screenshots and feature graphic](store/google-play/preview.html).
+Preview the [seven screenshots and feature graphic](store/google-play/preview.html).
 The upload keystore and its passwords are private local files excluded from Git.
 
 Public policy pages live in `web/privacy/` and `web/delete-account/`; deploy them

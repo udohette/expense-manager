@@ -9,6 +9,21 @@
     "height": 500,
     "mode": "RGB"
   },
+  "raw/00-bank-alert-import.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGBA"
+  },
+  "raw/00-bank-alert-message.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGBA"
+  },
+  "raw/00-bank-alert-preview.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGBA"
+  },
   "raw/01-overview.png": {
     "width": 1080,
     "height": 1920,
@@ -39,6 +54,91 @@
     "height": 1920,
     "mode": "RGBA"
   },
+  "raw/tablet-10-inch/00-bank-alert-message.png": {
+    "width": 1920,
+    "height": 1080,
+    "mode": "RGBA"
+  },
+  "raw/tablet-10-inch/00-bank-alert-preview.png": {
+    "width": 1920,
+    "height": 1080,
+    "mode": "RGBA"
+  },
+  "raw/tablet-10-inch/01-overview.png": {
+    "width": 1920,
+    "height": 1080,
+    "mode": "RGBA"
+  },
+  "raw/tablet-10-inch/02-transactions.png": {
+    "width": 1920,
+    "height": 1080,
+    "mode": "RGBA"
+  },
+  "raw/tablet-10-inch/03-budgets.png": {
+    "width": 1920,
+    "height": 1080,
+    "mode": "RGBA"
+  },
+  "raw/tablet-10-inch/04-goals.png": {
+    "width": 1920,
+    "height": 1080,
+    "mode": "RGBA"
+  },
+  "raw/tablet-10-inch/05-debts.png": {
+    "width": 1920,
+    "height": 1080,
+    "mode": "RGBA"
+  },
+  "raw/tablet-10-inch/06-wallets.png": {
+    "width": 1920,
+    "height": 1080,
+    "mode": "RGBA"
+  },
+  "raw/tablet-7-inch/00-bank-alert-message.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGBA"
+  },
+  "raw/tablet-7-inch/00-bank-alert-preview.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGBA"
+  },
+  "raw/tablet-7-inch/01-overview.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGBA"
+  },
+  "raw/tablet-7-inch/02-transactions.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGBA"
+  },
+  "raw/tablet-7-inch/03-budgets.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGBA"
+  },
+  "raw/tablet-7-inch/04-goals.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGBA"
+  },
+  "raw/tablet-7-inch/05-debts.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGBA"
+  },
+  "raw/tablet-7-inch/06-wallets.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGBA"
+  },
+  "screenshots/00-bank-alert-import.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGB"
+  },
   "screenshots/01-overview.png": {
     "width": 1080,
     "height": 1920,
@@ -65,6 +165,76 @@
     "mode": "RGB"
   },
   "screenshots/06-wallets.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGB"
+  },
+  "tablet-10-inch/00-bank-alert-import.png": {
+    "width": 1920,
+    "height": 1080,
+    "mode": "RGB"
+  },
+  "tablet-10-inch/01-overview.png": {
+    "width": 1920,
+    "height": 1080,
+    "mode": "RGB"
+  },
+  "tablet-10-inch/02-transactions.png": {
+    "width": 1920,
+    "height": 1080,
+    "mode": "RGB"
+  },
+  "tablet-10-inch/03-budgets.png": {
+    "width": 1920,
+    "height": 1080,
+    "mode": "RGB"
+  },
+  "tablet-10-inch/04-goals.png": {
+    "width": 1920,
+    "height": 1080,
+    "mode": "RGB"
+  },
+  "tablet-10-inch/05-debts.png": {
+    "width": 1920,
+    "height": 1080,
+    "mode": "RGB"
+  },
+  "tablet-10-inch/06-wallets.png": {
+    "width": 1920,
+    "height": 1080,
+    "mode": "RGB"
+  },
+  "tablet-7-inch/00-bank-alert-import.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGB"
+  },
+  "tablet-7-inch/01-overview.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGB"
+  },
+  "tablet-7-inch/02-transactions.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGB"
+  },
+  "tablet-7-inch/03-budgets.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGB"
+  },
+  "tablet-7-inch/04-goals.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGB"
+  },
+  "tablet-7-inch/05-debts.png": {
+    "width": 1080,
+    "height": 1920,
+    "mode": "RGB"
+  },
+  "tablet-7-inch/06-wallets.png": {
     "width": 1080,
     "height": 1920,
     "mode": "RGB"

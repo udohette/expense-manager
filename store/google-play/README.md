@@ -6,14 +6,20 @@ Prepared 16 November 2026. Package: `com.eintelix.expensetracker`. First release
 
 - `graphics/app-icon-512.png`: 512 × 512 RGB PNG.
 - `graphics/feature-graphic-1024x500.png`: 1024 × 500 RGB PNG.
-- `screenshots/01-overview.png` through `06-wallets.png`: six 1080 × 1920 RGB phone screenshots, in numbered order.
+- `screenshots/00-bank-alert-import.png` first, followed by `01-overview.png` through `06-wallets.png`: seven 1080 × 1920 RGB phone screenshots, in numbered order.
 - `listing/en-US.txt`: app name, short/full descriptions and contact details.
 - `listing/release-notes-en-US.txt`: initial release notes.
 - `preview.html` and `preview-grid.jpg`: local review gallery; not store-upload assets.
 - `raw/`: underlying 1080 × 1920 app renders, without promotional framing. Screens use actual Android-themed Flutter widgets, real fonts and isolated fictional records. These are test-render captures, not photos of a physical phone or proof of device behavior. No real account data is included.
 - `upload-certificate.pem`: PUBLIC upload-key certificate. It is safe to archive with this pack; it is not the private keystore.
 
-No tablet, TV, Wear OS or Chromebook-specific screenshots are supplied. Do not claim those form factors were tested. Preview assets follow [Google's asset specifications](https://support.google.com/googleplay/android-developer/answer/9866151).
+Tablet assets are in separate upload folders:
+
+- `tablet-7-inch/`: seven portrait PNGs, 1080 × 1920, rendered at a tablet layout width of 720 logical pixels.
+- `tablet-10-inch/`: seven landscape PNGs, 1920 × 1080, rendered at a tablet layout width of 1280 logical pixels.
+- In each folder, upload `00-bank-alert-import.png` first, followed by `01`–`06`. Only the numbered PNGs are upload assets; preview JPG/HTML files are for local review.
+
+These are actual Flutter layout captures at tablet viewports, with fictional data; they are not resized phone screenshots. Widget capture checks do not establish physical-tablet behavior or Play's large-screen quality approval. TV, Wear OS and Chromebook-specific screenshots are not supplied. Preview assets follow [Google's asset specifications](https://support.google.com/googleplay/android-developer/answer/9866151).
 
 ## Signing and build
 
@@ -69,6 +75,9 @@ Install Pillow in your chosen Python environment, then run:
 ```sh
 python3 scripts/release/generate_store_assets.py
 python3 scripts/release/generate_legal_pages.py
+python3 scripts/release/generate_tablet_assets.py
 ```
+
+The first screenshot highlights pasted bank-SMS import with a fictional alert and its parsed preview; it does not imply automatic SMS-inbox access.
 
 The screenshot capture creates and removes a temporary Hive database. It never signs in or modifies a user's data. Promotional framing and icon exports use the existing Eintelix mark. Validate screenshots visually after UI changes.

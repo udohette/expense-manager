@@ -59,7 +59,9 @@ for density, size in [('mdpi',48), ('hdpi',72), ('xhdpi',96), ('xxhdpi',144), ('
 (res / 'values/launcher_colors.xml').write_text('''<?xml version="1.0" encoding="utf-8"?>
 <resources><color name="ic_launcher_background">#FFFFFF</color></resources>
 ''')
+shutil.copy2(store/'raw/00-bank-alert-preview.png', store/'raw/00-bank-alert-import.png')
 slides = [
+ ('00-bank-alert-import', 'BANK SMS IMPORT', ['Bank alerts in.', 'Expenses sorted.'], 'Paste your SMS. Review details. Tap import.'),
  ('01-overview', 'OVERVIEW', ['Your money.', 'A clearer picture.'], 'See your balance and progress at a glance.'),
  ('02-transactions', 'TRANSACTIONS', ['Know where', 'your money goes.'], 'Record income. Organise everyday spending.'),
  ('03-budgets', 'BUDGETS', ['Make a plan.', 'Stay on track.'], 'Set spending limits for the things that matter.'),
@@ -108,11 +110,11 @@ feature.save(store/'graphics/feature-graphic-1024x500.png')
 # A local review gallery keeps exact upload assets easy to inspect.
 cards = ''.join(f'<figure><img src="screenshots/{s[0]}.png" alt="{html.escape(s[1])}"><figcaption>{html.escape(s[1])}</figcaption></figure>' for s in slides)
 (store/'preview.html').write_text('''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Eintelix Play Store assets</title><style>body{font:16px system-ui;background:#eef3f9;color:#233d61;margin:40px}header{max-width:1024px}header img{max-width:100%;border-radius:18px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:22px}figure{margin:0}figure img{width:100%;border-radius:18px}figcaption{padding:12px 0;font-weight:600}</style><header><h1>Eintelix Expense Tracker</h1><p>Google Play asset review · Actual app UI with fictional records</p><img src="graphics/feature-graphic-1024x500.png" alt="Feature graphic"></header><h2>Phone screenshots</h2><div class="grid">'''+cards+'</div></html>')
-thumbs = Image.new('RGB',(1080,1120),background)
+thumbs = Image.new('RGB',(1080,40 + ((len(slides)+2)//3)*540),background)
 for i, slide in enumerate(slides):
     im = Image.open(store/f'screenshots/{slide[0]}.png').resize((270,480),Image.Resampling.LANCZOS)
     thumbs.paste(im,(90+(i%3)*315,50+(i//3)*540))
 thumbs.save(store/'preview-grid.jpg',quality=90)
 manifest = {str(p.relative_to(store)): {'width':Image.open(p).width,'height':Image.open(p).height,'mode':Image.open(p).mode} for p in sorted(store.rglob('*.png'))}
 (store/'assets-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
-print('Exported six phone screenshots, raw captures, feature graphic, store icon, launcher icons and preview gallery.')
+print('Exported seven phone screenshots, raw captures, feature graphic, store icon, launcher icons and preview gallery.')
